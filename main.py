@@ -210,54 +210,62 @@ async def profile(ctx, member: discord.Member = None):
     if uid not in data:
         return await ctx.send(f"{member.display_name} hasn't caught any dragons yet!")
 
-    user_stats = data[uid]
-    monthly_pts = user_stats.get('monthly', 0)
-    global_pts = user_stats.get('global', 0)
-    wins = user_stats.get('wins', 0)
-    inventory = user_stats.get('inventory', {})
+    # 1. Grab raw stats
+    u_stats = data[uid]
+    m_pts = u_stats.get('monthly', 0)
+    g_pts = u_stats.get('global', 0)
+    u_wins = u_stats.get('wins', 0)
+    u_inv = u_stats.get('inventory', {})
 
-    # Calculate Ranks using very specific names to avoid command conflicts
-    # We use list(data.items()) to ensure we are looking at the data dictionary
-    sort_m = sorted(data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
-    sort_g = sorted(data.items(), key=lambda x: x[1].get('global', 0), reverse=True)
+    # 2. Calculate Ranks (Force math to happen before the embed)
+    # We use 'player_data' as a fresh name to stay away from anything called 'hlb' or 'ghlb'
+    monthly_list = sorted(data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
+    global_list = sorted(data.items(), key=lambda x: x[1].get('global', 0), reverse=True)
     
-    # We use 'pos' for position instead of 'rank' to be safe
-    m_pos = next((i + 1 for i, (u_id, _) in enumerate(sort_m) if u_id == uid), "N/A")
-    g_pos = next((i + 1 for i, (u_id, _) in enumerate(sort_g) if u_id == uid), "N/A")
+    final_m_rank = "N/A"
+    final_g_rank = "N/A"
 
-    # Titles based on Lifetime Pts
-    if global_pts > 1000: user_title = "Hoard Lord 👑"
-    elif global_pts > 500: user_title = "Dragon Stalker 🏹"
-    elif global_pts > 100: user_title = "Scaled Scout 🦎"
-    else: user_title = "Hatchling 🥚"
+    for i, (user_key, _) in enumerate(monthly_list):
+        if user_key == uid:
+            final_m_rank = i + 1
+            break
 
+    for i, (user_key, _) in enumerate(global_list):
+        if user_key == uid:
+            final_g_rank = i + 1
+            break
+
+    # 3. Titles
+    if g_pts > 1000: p_title = "Hoard Lord 👑"
+    elif g_pts > 500: p_title = "Dragon Stalker 🏹"
+    elif g_pts > 100: p_title = "Scaled Scout 🦎"
+    else: p_title = "Hatchling 🥚"
+
+    # 4. Build Embed
     embed = discord.Embed(title=f"{member.display_name} - Dragon Hunter Profile", color=discord.Color.blue())
     embed.set_thumbnail(url=member.display_avatar.url)
     
-    # Check for specific Roles/Medals
     medals = []
-    if wins > 0: medals.append(f"🏆 Season Wins: {wins}")
+    if u_wins > 0: medals.append(f"🏆 Season Wins: {u_wins}")
     for role in member.roles:
         if role.id == CHAMPION_ROLE_ID: medals.append("🎖️ Champion")
         if role.id == VETERAN_ROLE_ID: medals.append("🎖️ Veteran")
     
     embed.add_field(name="Titles & Medals", value=" | ".join(medals) if medals else "No medals yet", inline=False)
     
-    # Updated these fields to use our new m_pos and g_pos variables
-    embed.add_field(name="Rankings", value=f"**Monthly:** #{m_pos}\n**Global:** #{g_pos}", inline=True)
-    embed.add_field(name="Scores", value=f"**Monthly:** {monthly_pts}\n**Global:** {global_pts}", inline=True)
+    # Use the 'final' rank variables we calculated above
+    embed.add_field(name="Rankings", value=f"**Monthly:** #{final_m_rank}\n**Global:** #{final_g_rank}", inline=True)
+    embed.add_field(name="Scores", value=f"**Monthly:** {m_pts}\n**Global:** {g_pts}", inline=True)
 
-    # Top 3 Rarest Catches
-    if inventory:
-        sorted_inv = sorted(inventory.items(), key=lambda x: x[1], reverse=True)[:3]
+    if u_inv:
+        sorted_inv = sorted(u_inv.items(), key=lambda x: x[1], reverse=True)[:3]
         inv_text = "\n".join([f"🐲 {name} (x{count})" for name, count in sorted_inv])
         embed.add_field(name="Seasonal Top 3", value=inv_text, inline=False)
     else:
         embed.add_field(name="Seasonal Top 3", value="No catches this season", inline=False)
 
-    embed.set_footer(text=f"Current Title: {user_title}")
+    embed.set_footer(text=f"Current Title: {p_title}")
     await ctx.send(embed=embed)
-
 @bot.command()
 async def rd(ctx):
     global current_dragon, last_spawn_message, next_spawn_time
