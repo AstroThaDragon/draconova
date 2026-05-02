@@ -287,10 +287,73 @@ async def rd(ctx):
     mention = ctx.author.mention
     current_time = time.time()
 
-    # --- COOLDOWN CHECK ---
+    # --- 1. SPAWN PRESENT LOGIC ---
+    # We ignore the "Whooshed" spam check if there is actually a dragon to catch.
+    if current_dragon is not None:
+        data = load_data()
+        uid = str(user_id)
+        if uid not in data:
+            data[uid] = {"monthly": 0, "global": 0, "wins": 0, "inventory": {}, "pity": 0}
+        
+        if "pity" not in data[uid]: data[uid]["pity"] = 0
+
+        roll_sounds = {
+            "Red Dragon": "*Hsssskkkk*", 
+            "Basic Dragon Egg": "*Crackle!*", 
+            "Astral Elder Dragon": "*ROOOOOARRR*", 
+            "Rusty Satellite": "*Clank-clatter!*", 
+            "Glowing Meteor": "*Fwoosh-hiss!*", 
+            "Void Fragment": "*V-v-v-vrrrrmmm...*"
+        }
+        current_sound = roll_sounds.get(current_dragon['name'], "*Clink!*")
+        
+        base_roll = random.randint(1, 100)
+        pity_bonus = data[uid]["pity"]
+        total_roll = base_roll + pity_bonus
+        
+        success = False
+        if current_dragon['points'] <= 5 and total_roll > 30: success = True
+        elif current_dragon['points'] <= 15 and total_roll > 60: success = True
+        elif total_roll > 90: success = True 
+
+        if success:
+            data[uid]["monthly"] += current_dragon['points']
+            data[uid]["global"] += current_dragon['points']
+            
+            inv = data[uid].get("inventory", {})
+            d_name = current_dragon['name']
+            inv[d_name] = inv.get(d_name, 0) + 1
+            data[uid]["inventory"] = inv
+
+            for player_id in data:
+                data[player_id]["pity"] = 0
+
+            save_data(data)
+            if last_spawn_message: await last_spawn_message.edit(content=f"{current_dragon['sound']}\n\n**Caught!**")
+            
+            await ctx.send(f"{mention}\nYou caught the **{current_dragon['name']}** with a roll of {base_roll}!")
+            
+            current_dragon = None 
+            last_spawn_message = None
+            next_spawn_time = 0 
+        else:
+            # FAIL LOGIC
+            data[uid]["pity"] += 2
+            save_data(data)
+
+            dragon_name = current_dragon['name']
+            custom_fail = fail_messages.get(dragon_name, "It got away!")
+
+            # We don't block !rd when a spawn is active, but we can track the roll
+            last_roll_time[f"{user_id}_roll"] = base_roll
+            
+            await ctx.send(f"{mention} {current_sound}\n{custom_fail}")
+        return
+
+    # --- 2. NO SPAWN LOGIC ---
+    # This triggers the "Whooshed!" spam message ONLY if no dragon is present.
     if user_id in last_roll_time and current_time < last_roll_time[user_id]:
         seconds_left = int(last_roll_time[user_id] - current_time)
-        # Retrieve the last roll stored for this user to display it
         prev_roll = last_roll_time.get(f"{user_id}_roll", 0)
         
         await ctx.send(
@@ -299,76 +362,10 @@ async def rd(ctx):
         )
         return
 
-    # --- NO DRAGON SPAWNED ---
-    if current_dragon is None:
-        last_roll_time[user_id] = current_time + 5
-        last_roll_time[f"{user_id}_roll"] = 0
-        await ctx.send(f"{mention} *Whoosh*")
-        return
-
-    # --- ATTEMPTING A CATCH ---
-    data = load_data()
-    uid = str(user_id)
-    if uid not in data:
-        data[uid] = {"monthly": 0, "global": 0, "wins": 0, "inventory": {}, "pity": 0}
-    
-    if "pity" not in data[uid]: data[uid]["pity"] = 0
-
-    roll_sounds = {
-        "Red Dragon": "*Hsssskkkk*", 
-        "Basic Dragon Egg": "*Crackle!*", 
-        "Astral Elder Dragon": "*ROOOOOARRR*", 
-        "Rusty Satellite": "*Clank-clatter!*", 
-        "Glowing Meteor": "*Fwoosh-hiss!*", 
-        "Void Fragment": "*V-v-v-vrrrrmmm...*"
-    }
-    current_sound = roll_sounds.get(current_dragon['name'], "*Clink!*")
-    
-    base_roll = random.randint(1, 100)
-    pity_bonus = data[uid]["pity"]
-    total_roll = base_roll + pity_bonus
-    
-    success = False
-    if current_dragon['points'] <= 5 and total_roll > 30: success = True
-    elif current_dragon['points'] <= 15 and total_roll > 60: success = True
-    elif total_roll > 90: success = True 
-
-    if success:
-        data[uid]["monthly"] += current_dragon['points']
-        data[uid]["global"] += current_dragon['points']
-        
-        inv = data[uid].get("inventory", {})
-        d_name = current_dragon['name']
-        inv[d_name] = inv.get(d_name, 0) + 1
-        data[uid]["inventory"] = inv
-
-        for player_id in data:
-            data[player_id]["pity"] = 0
-
-        save_data(data)
-        if last_spawn_message: await last_spawn_message.edit(content=f"{current_dragon['sound']}\n\n**Caught!**")
-        
-        await ctx.send(f"{mention}\nYou caught the **{current_dragon['name']}** with a roll of {base_roll}!")
-        
-        current_dragon = None 
-        last_spawn_message = None
-        next_spawn_time = 0 
-    else:
-        # FAIL LOGIC
-        data[uid]["pity"] += 2
-        save_data(data)
-
-        dragon_name = current_dragon['name']
-        custom_fail = fail_messages.get(dragon_name, "It got away!")
-
-        if dragon_name == "Astral Elder Dragon": wait_time = 120
-        elif dragon_name == "Red Dragon": wait_time = 30
-        else: wait_time = 15
-        
-        last_roll_time[user_id] = current_time + wait_time
-        last_roll_time[f"{user_id}_roll"] = base_roll
-        
-        await ctx.send(f"{mention} {current_sound}\n{custom_fail}")
+    # Set a 5s spam cooldown when they roll while it's idle
+    last_roll_time[user_id] = current_time + 5
+    last_roll_time[f"{user_id}_roll"] = 0
+    await ctx.send(f"{mention} *Whoosh*")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
 async def hlb(ctx):
