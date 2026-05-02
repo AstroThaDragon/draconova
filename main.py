@@ -156,9 +156,13 @@ async def spawn_dragon_loop():
 # --- EVENTS ---
 @bot.event
 async def on_ready():
+    await bot.change_presence(activity=discord.Game(name="!hoardhelp | Catching Dragons!"))
+    
     print(f'Logged in as {bot.user.name}')
-    if not spawn_dragon_loop.is_running(): spawn_dragon_loop.start()
-    if not check_monthly_reset.is_running(): check_monthly_reset.start()
+    if not spawn_dragon_loop.is_running(): 
+        spawn_dragon_loop.start()
+    if not check_monthly_reset.is_running(): 
+        check_monthly_reset.start()
     print('Ready to catch some dragons!')
 
 # --- COMMANDS ---
