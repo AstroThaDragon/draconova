@@ -9,8 +9,18 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # --- SECURE TOKEN LOADING ---
-load_dotenv()                     
+load_dotenv()                       
 TOKEN = os.getenv('DISCORD_TOKEN')
+
+# --- RAILWAY DATA RECOVERY (VARIABLE INJECTION) ---
+# If the Volume is empty, this rebuilds the file from your INITIAL_DATA variable
+if not os.path.exists('data/hoard.json'):
+    initial_data = os.getenv('INITIAL_DATA')
+    if initial_data:
+        os.makedirs('data', exist_ok=True)
+        with open('data/hoard.json', 'w') as f:
+            f.write(initial_data)
+        print("Data successfully restored from Railway variables!")
 
 intents = discord.Intents.default()
 intents.message_content = True 
@@ -22,7 +32,7 @@ bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 ANNOUNCEMENT_CHANNEL_ID = 1306602160527507456 
 # Add your special role IDs here to show up as medals in !profile
 CHAMPION_ROLE_ID = 1500011207929892884  # Replace with actual ID
-VETERAN_ROLE_ID = 1500010986835542138   # Replace with actual ID
+VETERAN_ROLE_ID = 1500010986835542138    # Replace with actual ID
 
 # --- GLOBALS ---
 current_dragon = None  
