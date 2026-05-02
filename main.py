@@ -343,7 +343,6 @@ async def rd(ctx):
             save_data(data)
             if last_spawn_message: await last_spawn_message.edit(content=f"{current_dragon['sound']}\n\n**Caught!**")
             
-            # --- UPDATED SUCCESS MESSAGE ---
             await ctx.send(
                 f"{mention}\n"
                 f"You caught the **{dragon_name}**!\n"
@@ -369,10 +368,15 @@ async def rd(ctx):
         return
 
     # --- 2. NO SPAWN LOGIC ---
-    if user_id in last_roll_time and current_time < last_roll_time[user_id]:
-        return 
+    no_spawn_cd_key = f"{user_id}_no_spawn"
+    
+    # Check if they are currently on a "Whoosh" cooldown
+    if no_spawn_cd_key in last_roll_time and current_time < last_roll_time[no_spawn_cd_key]:
+        seconds_left = int(last_roll_time[no_spawn_cd_key] - current_time)
+        return await ctx.send(f"{mention} You were whooshed! There's no active spawn! Wait **{seconds_left}s**!")
 
-    last_roll_time[user_id] = current_time + 5
+    # Set a 5s cooldown and send the initial whoosh
+    last_roll_time[no_spawn_cd_key] = current_time + 5
     await ctx.send(f"{mention} *Whoosh*")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
