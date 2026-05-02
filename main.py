@@ -295,14 +295,11 @@ async def rd(ctx):
     # --- 1. SPAWN PRESENT LOGIC ---
     if current_dragon is not None:
         hunt_cd_key = f"{user_id}_hunt"
-        
-        # Pull the dragon's unique fail message and name for the cooldown response
         dragon_name = current_dragon['name']
         custom_fail = fail_messages.get(dragon_name, "It got away!")
 
         if hunt_cd_key in last_roll_time and current_time < last_roll_time[hunt_cd_key]:
             seconds_left = int(last_roll_time[hunt_cd_key] - current_time)
-            # Replaced "Wait X seconds to roll again" with the Immersive Fail Message
             return await ctx.send(f"{mention} {custom_fail} Wait **{seconds_left}s** to roll again!")
 
         data = load_data()
@@ -346,7 +343,12 @@ async def rd(ctx):
             save_data(data)
             if last_spawn_message: await last_spawn_message.edit(content=f"{current_dragon['sound']}\n\n**Caught!**")
             
-            await ctx.send(f"{mention}\nYou caught the **{dragon_name}** with a roll of {base_roll}!")
+            # --- UPDATED SUCCESS MESSAGE ---
+            await ctx.send(
+                f"{mention}\n"
+                f"You caught the **{dragon_name}**!\n"
+                f"-# (Roll: {base_roll})"
+            )
             
             current_dragon = None 
             last_spawn_message = None
