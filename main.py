@@ -37,6 +37,7 @@ last_spawn_message = None
 spawn_channel_id = 1109766164764184576  
 next_spawn_time = 0 
 last_roll_time = {}
+last_catch_time = 0  # Global to track the exact moment of the last win
 
 # --- CUSTOM FLY AWAY MESSAGES ---
 fly_away_messages = {
@@ -282,14 +283,24 @@ async def profile(ctx, member: discord.Member = None):
 
 @bot.command()
 async def rd(ctx):
-    global current_dragon, last_spawn_message, next_spawn_time
+    global current_dragon, last_spawn_message, next_spawn_time, last_catch_time
     user_id = ctx.author.id
     mention = ctx.author.mention
     current_time = time.time()
 
+    # --- 0. CATCH BUFFER ---
+    # Stops "Whoosh" from appearing if they clicked within 2s of a success
+    if current_time - last_catch_time < 2:
+        return
+
     # --- 1. SPAWN PRESENT LOGIC ---
-    # We ignore the "Whooshed" spam check if there is actually a dragon to catch.
     if current_dragon is not None:
+        hunt_cd_key = f"{user_id}_hunt"
+        # Check specific dragon cooldown if they failed recently
+        if hunt_cd_key in last_roll_time and current_time < last_roll_time[hunt_cd_key]:
+            seconds_left = int(last_roll_time[hunt_cd_key] - current_time)
+            return await ctx.send(f"{mention} Wait **{seconds_left}s** to roll again!")
+
         data = load_data()
         uid = str(user_id)
         if uid not in data:
@@ -317,6 +328,7 @@ async def rd(ctx):
         elif total_roll > 90: success = True 
 
         if success:
+            last_catch_time = time.time() # Update win time
             data[uid]["monthly"] += current_dragon['points']
             data[uid]["global"] += current_dragon['points']
             
@@ -341,7 +353,6 @@ async def rd(ctx):
             data[uid]["pity"] += 1
             save_data(data)
 
-            # Pull the specific cooldown for THIS dragon (defaults to 3 if not found)
             wait_time = current_dragon.get('cooldown', 3)
             last_roll_time[hunt_cd_key] = current_time + wait_time
             
@@ -353,22 +364,13 @@ async def rd(ctx):
                 f"{custom_fail}\n"
                 f"-# (Roll: {base_roll} | Wait {wait_time}s to try again)"
             )
-
-    # --- 2. NO SPAWN LOGIC ---
-    # This triggers the "Whooshed!" spam message ONLY if no dragon is present.
-    if user_id in last_roll_time and current_time < last_roll_time[user_id]:
-        seconds_left = int(last_roll_time[user_id] - current_time)
-        prev_roll = last_roll_time.get(f"{user_id}_roll", 0)
-        
-        await ctx.send(
-            f"{mention} You were whooshed! Wait {seconds_left}s before tossing the dice!\n"
-            f"-# (Rolled {prev_roll})"
-        )
         return
 
-    # Set a 5s spam cooldown when they roll while it's idle
+    # --- 2. NO SPAWN LOGIC ---
+    if user_id in last_roll_time and current_time < last_roll_time[user_id]:
+        return # Stay silent if they are spamming an empty room
+
     last_roll_time[user_id] = current_time + 5
-    last_roll_time[f"{user_id}_roll"] = 0
     await ctx.send(f"{mention} *Whoosh*")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
@@ -393,7 +395,7 @@ async def ghlb(ctx):
 async def spawn(ctx):
     global current_dragon, last_spawn_message, next_spawn_time
     channel = bot.get_channel(spawn_channel_id)
-    dragons = [{"name": "Red Dragon", "sound": "**Rawr!**", "points": 5}, {"name": "Basic Dragon Egg", "sound": "*Crackle...*", "points": 10}, {"name": "Astral Elder Dragon", "sound": "*Celestial hum...*", "points": 40}]
+    dragons = [{"name": "Red Dragon", "sound": "**Rawr!**", "points": 5, "cooldown": 30}, {"name": "Basic Dragon Egg", "sound": "*Crackle...*", "points": 10, "cooldown": 15}, {"name": "Astral Elder Dragon", "sound": "*Celestial hum...*", "points": 40, "cooldown": 120}]
     current_dragon = random.choice(dragons)
     last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
     next_spawn_time = 0 
