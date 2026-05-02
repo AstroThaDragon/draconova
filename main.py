@@ -182,12 +182,12 @@ async def spawn_dragon_loop():
         if channel is None: return
 
         dragons = [
-            {"name": "Red Dragon", "sound": "**Rawr!**", "points": 5},
-            {"name": "Basic Dragon Egg", "sound": "*Crackle...*", "points": 10},
-            {"name": "Astral Elder Dragon", "sound": "*Celestial hum...*", "points": 40}, 
-            {"name": "Rusty Satellite", "sound": "*Static whir...*", "points": 3},
-            {"name": "Glowing Meteor", "sound": "*Sizzle!*", "points": 15},
-            {"name": "Void Fragment", "sound": "*Vibration...*", "points": 30} 
+            {"name": "Red Dragon", "sound": "**Rawr!**", "points": 5, "cooldown": 30},
+            {"name": "Basic Dragon Egg", "sound": "*Crackle...*", "points": 10, "cooldown": 15},
+            {"name": "Astral Elder Dragon", "sound": "*Celestial hum...*", "points": 40, "cooldown": 120}, 
+            {"name": "Rusty Satellite", "sound": "*Static whir...*", "points": 3, "cooldown": 30},
+            {"name": "Glowing Meteor", "sound": "*Sizzle!*", "points": 15, "cooldown": 45},
+            {"name": "Void Fragment", "sound": "*Vibration...*", "points": 30, "cooldown": 60} 
         ]
         current_dragon = random.choice(dragons)
         last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
@@ -338,17 +338,21 @@ async def rd(ctx):
             next_spawn_time = 0 
         else:
             # FAIL LOGIC
-            data[uid]["pity"] += 2
+            data[uid]["pity"] += 1
             save_data(data)
 
+            # Pull the specific cooldown for THIS dragon (defaults to 3 if not found)
+            wait_time = current_dragon.get('cooldown', 3)
+            last_roll_time[hunt_cd_key] = current_time + wait_time
+            
             dragon_name = current_dragon['name']
             custom_fail = fail_messages.get(dragon_name, "It got away!")
-
-            # We don't block !rd when a spawn is active, but we can track the roll
-            last_roll_time[f"{user_id}_roll"] = base_roll
             
-            await ctx.send(f"{mention} {current_sound}\n{custom_fail}")
-        return
+            await ctx.send(
+                f"{mention} {current_sound}\n"
+                f"{custom_fail}\n"
+                f"-# (Roll: {base_roll} | Wait {wait_time}s to try again)"
+            )
 
     # --- 2. NO SPAWN LOGIC ---
     # This triggers the "Whooshed!" spam message ONLY if no dragon is present.
