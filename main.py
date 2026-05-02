@@ -298,7 +298,6 @@ async def rd(ctx):
         dragon_name = current_dragon['name']
         custom_fail = fail_messages.get(dragon_name, "It got away!")
 
-        # Cooldown check: If active, only show the timer
         if hunt_cd_key in last_roll_time and current_time < last_roll_time[hunt_cd_key]:
             seconds_left = int(last_roll_time[hunt_cd_key] - current_time)
             return await ctx.send(f"{mention} Wait **{seconds_left}s** to roll again!")
@@ -361,7 +360,6 @@ async def rd(ctx):
             wait_time = current_dragon.get('cooldown', 3)
             last_roll_time[hunt_cd_key] = current_time + wait_time
             
-            # Sound on the first line, Failure text on the second
             await ctx.send(
                 f"{mention} {current_sound}\n"
                 f"{custom_fail}\n"
