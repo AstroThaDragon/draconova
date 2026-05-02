@@ -37,7 +37,7 @@ last_spawn_message = None
 spawn_channel_id = 1109766164764184576  
 next_spawn_time = 0 
 last_roll_time = {}
-last_catch_time = 0  # Global to track the exact moment of the last win
+last_catch_time = 0  
 
 # --- CUSTOM FLY AWAY MESSAGES ---
 fly_away_messages = {
@@ -289,17 +289,21 @@ async def rd(ctx):
     current_time = time.time()
 
     # --- 0. CATCH BUFFER ---
-    # Stops "Whoosh" from appearing if they clicked within 2s of a success
     if current_time - last_catch_time < 2:
         return
 
     # --- 1. SPAWN PRESENT LOGIC ---
     if current_dragon is not None:
         hunt_cd_key = f"{user_id}_hunt"
-        # Check specific dragon cooldown if they failed recently
+        
+        # Pull the dragon's unique fail message and name for the cooldown response
+        dragon_name = current_dragon['name']
+        custom_fail = fail_messages.get(dragon_name, "It got away!")
+
         if hunt_cd_key in last_roll_time and current_time < last_roll_time[hunt_cd_key]:
             seconds_left = int(last_roll_time[hunt_cd_key] - current_time)
-            return await ctx.send(f"{mention} Wait **{seconds_left}s** to roll again!")
+            # Replaced "Wait X seconds to roll again" with the Immersive Fail Message
+            return await ctx.send(f"{mention} {custom_fail} Wait **{seconds_left}s** to roll again!")
 
         data = load_data()
         uid = str(user_id)
@@ -316,7 +320,7 @@ async def rd(ctx):
             "Glowing Meteor": "*Fwoosh-hiss!*", 
             "Void Fragment": "*V-v-v-vrrrrmmm...*"
         }
-        current_sound = roll_sounds.get(current_dragon['name'], "*Clink!*")
+        current_sound = roll_sounds.get(dragon_name, "*Clink!*")
         
         base_roll = random.randint(1, 100)
         pity_bonus = data[uid]["pity"]
@@ -328,13 +332,12 @@ async def rd(ctx):
         elif total_roll > 90: success = True 
 
         if success:
-            last_catch_time = time.time() # Update win time
+            last_catch_time = time.time() 
             data[uid]["monthly"] += current_dragon['points']
             data[uid]["global"] += current_dragon['points']
             
             inv = data[uid].get("inventory", {})
-            d_name = current_dragon['name']
-            inv[d_name] = inv.get(d_name, 0) + 1
+            inv[dragon_name] = inv.get(dragon_name, 0) + 1
             data[uid]["inventory"] = inv
 
             for player_id in data:
@@ -343,7 +346,7 @@ async def rd(ctx):
             save_data(data)
             if last_spawn_message: await last_spawn_message.edit(content=f"{current_dragon['sound']}\n\n**Caught!**")
             
-            await ctx.send(f"{mention}\nYou caught the **{current_dragon['name']}** with a roll of {base_roll}!")
+            await ctx.send(f"{mention}\nYou caught the **{dragon_name}** with a roll of {base_roll}!")
             
             current_dragon = None 
             last_spawn_message = None
@@ -356,9 +359,6 @@ async def rd(ctx):
             wait_time = current_dragon.get('cooldown', 3)
             last_roll_time[hunt_cd_key] = current_time + wait_time
             
-            dragon_name = current_dragon['name']
-            custom_fail = fail_messages.get(dragon_name, "It got away!")
-            
             await ctx.send(
                 f"{mention} {current_sound}\n"
                 f"{custom_fail}\n"
@@ -368,7 +368,7 @@ async def rd(ctx):
 
     # --- 2. NO SPAWN LOGIC ---
     if user_id in last_roll_time and current_time < last_roll_time[user_id]:
-        return # Stay silent if they are spamming an empty room
+        return 
 
     last_roll_time[user_id] = current_time + 5
     await ctx.send(f"{mention} *Whoosh*")
