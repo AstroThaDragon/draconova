@@ -13,7 +13,6 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 # --- RAILWAY DATA RECOVERY (VARIABLE INJECTION) ---
-# If the Volume is empty, this rebuilds the file from your INITIAL_DATA variable
 if not os.path.exists('data/hoard.json'):
     initial_data = os.getenv('INITIAL_DATA')
     if initial_data:
@@ -25,21 +24,29 @@ if not os.path.exists('data/hoard.json'):
 intents = discord.Intents.default()
 intents.message_content = True 
 
-# Added help_command=None to stop the bot from using the default !help
 bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 
 # --- SETTINGS ---
 ANNOUNCEMENT_CHANNEL_ID = 1306602160527507456 
-# Add your special role IDs here to show up as medals in !profile
-CHAMPION_ROLE_ID = 1500011207929892884  # Replace with actual ID
-VETERAN_ROLE_ID = 1500010986835542138    # Replace with actual ID
+CHAMPION_ROLE_ID = 1500011207929892884 
+VETERAN_ROLE_ID = 1500010986835542138   
 
 # --- GLOBALS ---
 current_dragon = None  
 last_spawn_message = None 
 spawn_channel_id = 1109766164764184576  
-next_spawn_time = 0 # Tracks when the next dragon will appear
+next_spawn_time = 0 
 last_roll_time = {}
+
+# --- CUSTOM FLY AWAY MESSAGES ---
+fly_away_messages = {
+    "Red Dragon": "*The Red Dragon let out one last roar and flew away.*",
+    "Basic Dragon Egg": "*The egg grew too cold and vanished into the brush.",
+    "Astral Elder Dragon": "*The sky cleared as the Astral Elder Dragon ascended back to the stars.*",
+    "Rusty Satellite": "*The satellite's signal flickered out as it drifted into deep space.*",
+    "Glowing Meteor": "*The meteor finally cooled down and stopped glowing, becoming just a rock.*",
+    "Void Fragment": "*The vibration stopped as the Void Fragment collapsed into nothingness.*"
+}
 
 # --- DATA HELPERS ---
 def load_data():
@@ -109,7 +116,6 @@ async def check_monthly_reset():
         
         if not top_10 or top_10[0][1].get('monthly', 0) == 0: return
 
-        # Track the winner's permanent wins
         winner_id = top_10[0][0]
         data[winner_id]['wins'] = data[winner_id].get('wins', 0) + 1
 
@@ -129,22 +135,41 @@ async def check_monthly_reset():
 
         for uid in data:
             data[uid]['monthly'] = 0
-            data[uid]['inventory'] = {} # Clear seasonal inventory
-            data[uid]['pity'] = 0 # Clear pity on reset
+            data[uid]['inventory'] = {} 
+            data[uid]['pity'] = 0 
         
         save_data(data)
 
-@tasks.loop(seconds=10) # Loop quickly to check timing
+@tasks.loop(minutes=1)
+async def despawn_timer():
+    global current_dragon, last_spawn_message, next_spawn_time
+    
+    if current_dragon and last_spawn_message:
+        # Check how long it's been since the message was created
+        time_since_spawn = (datetime.utcnow() - last_spawn_message.created_at.replace(tzinfo=None)).total_seconds()
+        
+        if time_since_spawn > 600: # 10 minutes
+            dragon_name = current_dragon['name']
+            # Get your custom message or use a generic one if name isn't found
+            flew_msg = fly_away_messages.get(dragon_name, f"The {dragon_name} disappeared into the mist...")
+            
+            await last_spawn_message.edit(content=f"**{flew_msg}**")
+            
+            # Reset the dragon so the next one can spawn
+            current_dragon = None
+            last_spawn_message = None
+            next_spawn_time = 0
+            print(f"DEBUG: {dragon_name} timed out and despawned.")
+
+@tasks.loop(seconds=10) 
 async def spawn_dragon_loop():
     global current_dragon, last_spawn_message, next_spawn_time
     
-    # If no spawn is scheduled, schedule one
     if next_spawn_time == 0:
         wait_seconds = random.randint(300, 1800)
         next_spawn_time = time.time() + wait_seconds
         return
 
-    # Check if it's time to spawn
     if time.time() >= next_spawn_time and current_dragon is None:
         channel = bot.get_channel(spawn_channel_id)
         if channel is None: return
@@ -159,8 +184,6 @@ async def spawn_dragon_loop():
         ]
         current_dragon = random.choice(dragons)
         last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
-        
-        # Reset timer so a new one can be scheduled after this one is caught
         next_spawn_time = 0
 
 # --- EVENTS ---
@@ -173,6 +196,8 @@ async def on_ready():
         spawn_dragon_loop.start()
     if not check_monthly_reset.is_running(): 
         check_monthly_reset.start()
+    if not despawn_timer.is_running():
+        despawn_timer.start()
     print('Ready to catch some dragons!')
 
 # --- COMMANDS ---
@@ -183,21 +208,9 @@ async def hoardhelp(ctx):
         description="Track your progress and catch rare beasts! Here are the commands you can use:",
         color=discord.Color.green()
     )
-    embed.add_field(
-        name="🎮 Gameplay", 
-        value="`!rd` - Try to catch a dragon when one appears.", 
-        inline=False
-    )
-    embed.add_field(
-        name="👤 Stats", 
-        value="`!profile` (or `!p`) - View your rank and rarest catches.", 
-        inline=False
-    )
-    embed.add_field(
-        name="📊 Leaderboards", 
-        value="`!hlb` - Monthly rankings.\n`!ghlb` - Lifetime rankings.", 
-        inline=False
-    )
+    embed.add_field(name="🎮 Gameplay", value="`!rd` - Try to catch a dragon when one appears.", inline=False)
+    embed.add_field(name="👤 Stats", value="`!profile` (or `!p`) - View your rank and rarest catches.", inline=False)
+    embed.add_field(name="📊 Leaderboards", value="`!hlb` - Monthly rankings.\n`!ghlb` - Lifetime rankings.", inline=False)
     embed.set_footer(text="Watch the spawn channel for dragon sounds!")
     await ctx.send(embed=embed)
 
@@ -210,15 +223,12 @@ async def profile(ctx, member: discord.Member = None):
     if uid not in data:
         return await ctx.send(f"{member.display_name} hasn't caught any dragons yet!")
 
-    # 1. Grab raw stats
     u_stats = data[uid]
     m_pts = u_stats.get('monthly', 0)
     g_pts = u_stats.get('global', 0)
     u_wins = u_stats.get('wins', 0)
     u_inv = u_stats.get('inventory', {})
 
-    # 2. Calculate Ranks (Force math to happen before the embed)
-    # We use 'player_data' as a fresh name to stay away from anything called 'hlb' or 'ghlb'
     monthly_list = sorted(data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
     global_list = sorted(data.items(), key=lambda x: x[1].get('global', 0), reverse=True)
     
@@ -235,13 +245,11 @@ async def profile(ctx, member: discord.Member = None):
             final_g_rank = i + 1
             break
 
-    # 3. Titles
     if g_pts > 1000: p_title = "Hoard Lord 👑"
     elif g_pts > 500: p_title = "Dragon Stalker 🏹"
     elif g_pts > 100: p_title = "Scaled Scout 🦎"
     else: p_title = "Hatchling 🥚"
 
-    # 4. Build Embed
     embed = discord.Embed(title=f"{member.display_name} - Dragon Hunter Profile", color=discord.Color.blue())
     embed.set_thumbnail(url=member.display_avatar.url)
     
@@ -252,8 +260,6 @@ async def profile(ctx, member: discord.Member = None):
         if role.id == VETERAN_ROLE_ID: medals.append("🎖️ Veteran")
     
     embed.add_field(name="Titles & Medals", value=" | ".join(medals) if medals else "No medals yet", inline=False)
-    
-    # Use the 'final' rank variables we calculated above
     embed.add_field(name="Rankings", value=f"**Monthly:** #{final_m_rank}\n**Global:** #{final_g_rank}", inline=True)
     embed.add_field(name="Scores", value=f"**Monthly:** {m_pts}\n**Global:** {g_pts}", inline=True)
 
@@ -266,6 +272,7 @@ async def profile(ctx, member: discord.Member = None):
 
     embed.set_footer(text=f"Current Title: {p_title}")
     await ctx.send(embed=embed)
+
 @bot.command()
 async def rd(ctx):
     global current_dragon, last_spawn_message, next_spawn_time
@@ -287,13 +294,11 @@ async def rd(ctx):
         if uid not in data:
             data[uid] = {"monthly": 0, "global": 0, "wins": 0, "inventory": {}, "pity": 0}
         
-        # Ensure pity key exists for existing users
         if "pity" not in data[uid]: data[uid]["pity"] = 0
 
         roll_sounds = {"Red Dragon": "*Hsssskkkk*", "Basic Dragon Egg": "*Crackle!*", "Astral Elder Dragon": "*ROOOOOARRR*", "Rusty Satellite": "*Clank-clatter!*", "Glowing Meteor": "*Fwoosh-hiss!*", "Void Fragment": "*V-v-v-vrrrrmmm...*"}
         current_sound = roll_sounds.get(current_dragon['name'], "*Clink!*")
         
-        # Whiff Protection Logic
         base_roll = random.randint(1, 100)
         pity_bonus = data[uid]["pity"]
         total_roll = base_roll + pity_bonus
@@ -312,7 +317,6 @@ async def rd(ctx):
             inv[d_name] = inv.get(d_name, 0) + 1
             data[uid]["inventory"] = inv
 
-            # RESET PITY FOR EVERYONE (current spawn only)
             for player_id in data:
                 data[player_id]["pity"] = 0
 
@@ -326,7 +330,6 @@ async def rd(ctx):
             last_spawn_message = None
             next_spawn_time = 0 
         else:
-            # Add pity bonus for the next attempt on this spawn
             data[uid]["pity"] += 2
             save_data(data)
 
@@ -361,7 +364,7 @@ async def spawn(ctx):
     dragons = [{"name": "Red Dragon", "sound": "**Rawr!**", "points": 5}, {"name": "Basic Dragon Egg", "sound": "*Crackle...*", "points": 10}, {"name": "Astral Elder Dragon", "sound": "*Celestial hum...*", "points": 40}]
     current_dragon = random.choice(dragons)
     last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
-    next_spawn_time = 0 # Reset timer because a manual one was spawned
+    next_spawn_time = 0 
 
 @bot.command()
 @commands.has_permissions(administrator=True)
