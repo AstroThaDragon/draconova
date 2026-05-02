@@ -216,12 +216,12 @@ async def profile(ctx, member: discord.Member = None):
     wins = user_stats.get('wins', 0)
     inventory = user_stats.get('inventory', {})
 
-    # Calculate Ranks
-    sorted_monthly = sorted(data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
-    sorted_global = sorted(data.items(), key=lambda x: x[1].get('global', 0), reverse=True)
+    # Calculate Ranks (using unique names to avoid command conflict)
+    all_users_monthly = sorted(data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
+    all_users_global = sorted(data.items(), key=lambda x: x[1].get('global', 0), reverse=True)
     
-    m_rank = next((i + 1 for i, (id, _) in enumerate(sorted_monthly) if id == uid), "N/A")
-    g_rank = next((i + 1 for i, (id, _) in enumerate(sorted_global) if id == uid), "N/A")
+    m_rank = next((i + 1 for i, (user_id_key, _) in enumerate(all_users_monthly) if user_id_key == uid), "N/A")
+    g_rank = next((i + 1 for i, (user_id_key, _) in enumerate(all_users_global) if user_id_key == uid), "N/A")
 
     # Titles based on Lifetime Pts
     if global_pts > 1000: title = "Hoard Lord 👑"
