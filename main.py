@@ -298,9 +298,10 @@ async def rd(ctx):
         dragon_name = current_dragon['name']
         custom_fail = fail_messages.get(dragon_name, "It got away!")
 
+        # Cooldown check: If active, only show the timer
         if hunt_cd_key in last_roll_time and current_time < last_roll_time[hunt_cd_key]:
             seconds_left = int(last_roll_time[hunt_cd_key] - current_time)
-            return await ctx.send(f"{mention} {custom_fail} Wait **{seconds_left}s** to roll again!")
+            return await ctx.send(f"{mention} Wait **{seconds_left}s** to roll again!")
 
         data = load_data()
         uid = str(user_id)
@@ -360,6 +361,7 @@ async def rd(ctx):
             wait_time = current_dragon.get('cooldown', 3)
             last_roll_time[hunt_cd_key] = current_time + wait_time
             
+            # Sound on the first line, Failure text on the second
             await ctx.send(
                 f"{mention} {current_sound}\n"
                 f"{custom_fail}\n"
@@ -370,14 +372,12 @@ async def rd(ctx):
     # --- 2. NO SPAWN LOGIC ---
     no_spawn_cd_key = f"{user_id}_no_spawn"
     
-    # Check if they are currently on a "Whoosh" cooldown
     if no_spawn_cd_key in last_roll_time and current_time < last_roll_time[no_spawn_cd_key]:
         seconds_left = int(last_roll_time[no_spawn_cd_key] - current_time)
-        return await ctx.send(f"{mention} You were whooshed! There's no active spawn! Wait **{seconds_left}s**!")
+        return await ctx.send(f"{mention} Wait **{seconds_left}s**!")
 
-    # Set a 5s cooldown and send the initial whoosh
     last_roll_time[no_spawn_cd_key] = current_time + 5
-    await ctx.send(f"{mention} *Whoosh*")
+    await ctx.send(f"{mention} *Whoosh*\nThere's no active spawn!")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
 async def hlb(ctx):
