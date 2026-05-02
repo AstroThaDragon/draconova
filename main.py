@@ -362,7 +362,6 @@ async def rd(ctx):
             
             await ctx.send(
                 f"{mention} {current_sound}\n"
-                f"{custom_fail}\n"
                 f"-# (Roll: {base_roll} | Wait {wait_time}s to try again)"
             )
         return
