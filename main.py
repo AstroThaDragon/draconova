@@ -216,18 +216,20 @@ async def profile(ctx, member: discord.Member = None):
     wins = user_stats.get('wins', 0)
     inventory = user_stats.get('inventory', {})
 
-    # Calculate Ranks (using unique names to avoid command conflict)
-    all_users_monthly = sorted(data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
-    all_users_global = sorted(data.items(), key=lambda x: x[1].get('global', 0), reverse=True)
+    # Calculate Ranks using very specific names to avoid command conflicts
+    # We use list(data.items()) to ensure we are looking at the data dictionary
+    sort_m = sorted(data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
+    sort_g = sorted(data.items(), key=lambda x: x[1].get('global', 0), reverse=True)
     
-    m_rank = next((i + 1 for i, (user_id_key, _) in enumerate(all_users_monthly) if user_id_key == uid), "N/A")
-    g_rank = next((i + 1 for i, (user_id_key, _) in enumerate(all_users_global) if user_id_key == uid), "N/A")
+    # We use 'pos' for position instead of 'rank' to be safe
+    m_pos = next((i + 1 for i, (u_id, _) in enumerate(sort_m) if u_id == uid), "N/A")
+    g_pos = next((i + 1 for i, (u_id, _) in enumerate(sort_g) if u_id == uid), "N/A")
 
     # Titles based on Lifetime Pts
-    if global_pts > 1000: title = "Hoard Lord 👑"
-    elif global_pts > 500: title = "Dragon Stalker 🏹"
-    elif global_pts > 100: title = "Scaled Scout 🦎"
-    else: title = "Hatchling 🥚"
+    if global_pts > 1000: user_title = "Hoard Lord 👑"
+    elif global_pts > 500: user_title = "Dragon Stalker 🏹"
+    elif global_pts > 100: user_title = "Scaled Scout 🦎"
+    else: user_title = "Hatchling 🥚"
 
     embed = discord.Embed(title=f"{member.display_name} - Dragon Hunter Profile", color=discord.Color.blue())
     embed.set_thumbnail(url=member.display_avatar.url)
@@ -240,7 +242,9 @@ async def profile(ctx, member: discord.Member = None):
         if role.id == VETERAN_ROLE_ID: medals.append("🎖️ Veteran")
     
     embed.add_field(name="Titles & Medals", value=" | ".join(medals) if medals else "No medals yet", inline=False)
-    embed.add_field(name="Rankings", value=f"**Monthly:** #{m_rank}\n**Global:** #{g_rank}", inline=True)
+    
+    # Updated these fields to use our new m_pos and g_pos variables
+    embed.add_field(name="Rankings", value=f"**Monthly:** #{m_pos}\n**Global:** #{g_pos}", inline=True)
     embed.add_field(name="Scores", value=f"**Monthly:** {monthly_pts}\n**Global:** {global_pts}", inline=True)
 
     # Top 3 Rarest Catches
@@ -251,7 +255,7 @@ async def profile(ctx, member: discord.Member = None):
     else:
         embed.add_field(name="Seasonal Top 3", value="No catches this season", inline=False)
 
-    embed.set_footer(text=f"Current Title: {title}")
+    embed.set_footer(text=f"Current Title: {user_title}")
     await ctx.send(embed=embed)
 
 @bot.command()
