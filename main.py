@@ -48,6 +48,16 @@ fly_away_messages = {
     "Void Fragment": "*The vibration stopped as the Void Fragment collapsed into nothingness.*"
 }
 
+# --- CUSTOM FAIL MESSAGES ---
+fail_messages = {
+    "Red Dragon": "The Red Dragon swiped its tail, knocking your dice out of your hand!",
+    "Basic Dragon Egg": "The egg rolled into a thicket before you could grab it.",
+    "Astral Elder Dragon": "The Elder Dragon simply ignored your presence as it hummed.",
+    "Rusty Satellite": "The satellite spun wildly, making it impossible to catch.",
+    "Glowing Meteor": "The heat was too intense! You had to jump back!",
+    "Void Fragment": "Your hands passed right through the fragment. It's not fully in this dimension..."
+}
+
 # --- DATA HELPERS ---
 def load_data():
     if os.path.exists('data/hoard.json'):
@@ -145,17 +155,14 @@ async def despawn_timer():
     global current_dragon, last_spawn_message, next_spawn_time
     
     if current_dragon and last_spawn_message:
-        # Check how long it's been since the message was created
         time_since_spawn = (datetime.utcnow() - last_spawn_message.created_at.replace(tzinfo=None)).total_seconds()
         
         if time_since_spawn > 600: # 10 minutes
             dragon_name = current_dragon['name']
-            # Get your custom message or use a generic one if name isn't found
             flew_msg = fly_away_messages.get(dragon_name, f"The {dragon_name} disappeared into the mist...")
             
             await last_spawn_message.edit(content=f"**{flew_msg}**")
             
-            # Reset the dragon so the next one can spawn
             current_dragon = None
             last_spawn_message = None
             next_spawn_time = 0
@@ -333,11 +340,18 @@ async def rd(ctx):
             data[uid]["pity"] += 2
             save_data(data)
 
-            if current_dragon['name'] == "Astral Elder Dragon": last_roll_time[user_id] = current_time + 120
-            elif current_dragon['name'] == "Red Dragon": last_roll_time[user_id] = current_time + 30
-            else: last_roll_time[user_id] = current_time + 15
+            dragon_name = current_dragon['name']
+            custom_fail = fail_messages.get(dragon_name, "It got away!")
+
+            # Determine cooldown time
+            if dragon_name == "Astral Elder Dragon": wait_time = 120
+            elif dragon_name == "Red Dragon": wait_time = 30
+            else: wait_time = 15
             
-            await ctx.send(f"{mention} {current_sound}\nYou rolled a {base_roll} (+{pity_bonus} luck). Total: {total_roll}. Better luck next time!")
+            last_roll_time[user_id] = current_time + wait_time
+            
+            # Combined fail message with cooldown timer
+            await ctx.send(f"{mention} {current_sound}\n{custom_fail}\n(Rolled {base_roll} + {pity_bonus} luck. Total: {total_roll})\n**You can't roll for {wait_time}s!**")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
 async def hlb(ctx):
