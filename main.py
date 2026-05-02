@@ -319,13 +319,20 @@ async def rd(ctx):
         }
         current_sound = roll_sounds.get(dragon_name, "*Clink!*")
         
+        # --- THE ROLL LOGIC WITH PITY CAP ---
         base_roll = random.randint(1, 100)
         pity_bonus = data[uid]["pity"]
+
+        # SET THE CAP HERE (e.g., 15 or 20)
+        # This prevents the bonus from making rare catches too easy.
+        if pity_bonus > 10:
+            pity_bonus = 10
+        
         total_roll = base_roll + pity_bonus
         
         success = False
-        if current_dragon['points'] <= 5 and total_roll > 30: success = True
-        elif current_dragon['points'] <= 15 and total_roll > 60: success = True
+        if current_dragon['points'] <= 5 and total_roll > 35: success = True
+        elif current_dragon['points'] <= 15 and total_roll > 70: success = True
         elif total_roll > 90: success = True 
 
         if success:
@@ -354,7 +361,7 @@ async def rd(ctx):
             next_spawn_time = 0 
         else:
             # FAIL LOGIC
-            data[uid]["pity"] += 1
+            data[uid]["pity"] += 0.5
             save_data(data)
 
             wait_time = current_dragon.get('cooldown', 3)
