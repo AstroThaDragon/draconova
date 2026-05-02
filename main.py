@@ -9,7 +9,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # --- SECURE TOKEN LOADING ---
-load_dotenv()                       
+load_dotenv()                        
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 # --- RAILWAY DATA RECOVERY (VARIABLE INJECTION) ---
@@ -287,71 +287,88 @@ async def rd(ctx):
     mention = ctx.author.mention
     current_time = time.time()
 
+    # --- COOLDOWN CHECK ---
     if user_id in last_roll_time and current_time < last_roll_time[user_id]:
         seconds_left = int(last_roll_time[user_id] - current_time)
-        await ctx.send(f"{mention} You were whooshed! Wait {seconds_left}s before tossing the dice!")
+        # Retrieve the last roll stored for this user to display it
+        prev_roll = last_roll_time.get(f"{user_id}_roll", 0)
+        
+        await ctx.send(
+            f"{mention} You were whooshed! Wait {seconds_left}s before tossing the dice!\n"
+            f"-# (Rolled {prev_roll})"
+        )
         return
 
+    # --- NO DRAGON SPAWNED ---
     if current_dragon is None:
         last_roll_time[user_id] = current_time + 5
+        last_roll_time[f"{user_id}_roll"] = 0
         await ctx.send(f"{mention} *Whoosh*")
+        return
+
+    # --- ATTEMPTING A CATCH ---
+    data = load_data()
+    uid = str(user_id)
+    if uid not in data:
+        data[uid] = {"monthly": 0, "global": 0, "wins": 0, "inventory": {}, "pity": 0}
+    
+    if "pity" not in data[uid]: data[uid]["pity"] = 0
+
+    roll_sounds = {
+        "Red Dragon": "*Hsssskkkk*", 
+        "Basic Dragon Egg": "*Crackle!*", 
+        "Astral Elder Dragon": "*ROOOOOARRR*", 
+        "Rusty Satellite": "*Clank-clatter!*", 
+        "Glowing Meteor": "*Fwoosh-hiss!*", 
+        "Void Fragment": "*V-v-v-vrrrrmmm...*"
+    }
+    current_sound = roll_sounds.get(current_dragon['name'], "*Clink!*")
+    
+    base_roll = random.randint(1, 100)
+    pity_bonus = data[uid]["pity"]
+    total_roll = base_roll + pity_bonus
+    
+    success = False
+    if current_dragon['points'] <= 5 and total_roll > 30: success = True
+    elif current_dragon['points'] <= 15 and total_roll > 60: success = True
+    elif total_roll > 90: success = True 
+
+    if success:
+        data[uid]["monthly"] += current_dragon['points']
+        data[uid]["global"] += current_dragon['points']
+        
+        inv = data[uid].get("inventory", {})
+        d_name = current_dragon['name']
+        inv[d_name] = inv.get(d_name, 0) + 1
+        data[uid]["inventory"] = inv
+
+        for player_id in data:
+            data[player_id]["pity"] = 0
+
+        save_data(data)
+        if last_spawn_message: await last_spawn_message.edit(content=f"{current_dragon['sound']}\n\n**Caught!**")
+        
+        await ctx.send(f"{mention}\nYou caught the **{current_dragon['name']}** with a roll of {base_roll}!")
+        
+        current_dragon = None 
+        last_spawn_message = None
+        next_spawn_time = 0 
     else:
-        data = load_data()
-        uid = str(user_id)
-        if uid not in data:
-            data[uid] = {"monthly": 0, "global": 0, "wins": 0, "inventory": {}, "pity": 0}
+        # FAIL LOGIC
+        data[uid]["pity"] += 2
+        save_data(data)
+
+        dragon_name = current_dragon['name']
+        custom_fail = fail_messages.get(dragon_name, "It got away!")
+
+        if dragon_name == "Astral Elder Dragon": wait_time = 120
+        elif dragon_name == "Red Dragon": wait_time = 30
+        else: wait_time = 15
         
-        if "pity" not in data[uid]: data[uid]["pity"] = 0
-
-        roll_sounds = {"Red Dragon": "*Hsssskkkk*", "Basic Dragon Egg": "*Crackle!*", "Astral Elder Dragon": "*ROOOOOARRR*", "Rusty Satellite": "*Clank-clatter!*", "Glowing Meteor": "*Fwoosh-hiss!*", "Void Fragment": "*V-v-v-vrrrrmmm...*"}
-        current_sound = roll_sounds.get(current_dragon['name'], "*Clink!*")
+        last_roll_time[user_id] = current_time + wait_time
+        last_roll_time[f"{user_id}_roll"] = base_roll
         
-        base_roll = random.randint(1, 100)
-        pity_bonus = data[uid]["pity"]
-        total_roll = base_roll + pity_bonus
-        
-        success = False
-        if current_dragon['points'] <= 5 and total_roll > 30: success = True
-        elif current_dragon['points'] <= 15 and total_roll > 60: success = True
-        elif total_roll > 90: success = True 
-
-        if success:
-            data[uid]["monthly"] += current_dragon['points']
-            data[uid]["global"] += current_dragon['points']
-            
-            inv = data[uid].get("inventory", {})
-            d_name = current_dragon['name']
-            inv[d_name] = inv.get(d_name, 0) + 1
-            data[uid]["inventory"] = inv
-
-            for player_id in data:
-                data[player_id]["pity"] = 0
-
-            save_data(data)
-            if last_spawn_message: await last_spawn_message.edit(content=f"{current_dragon['sound']}\n\n**Caught!**")
-            
-            bonus_text = f" (+{pity_bonus} luck)" if pity_bonus > 0 else ""
-            await ctx.send(f"{mention}\nYou caught the **{current_dragon['name']}** with a roll of {base_roll}{bonus_text}!")
-            
-            current_dragon = None 
-            last_spawn_message = None
-            next_spawn_time = 0 
-        else:
-            data[uid]["pity"] += 2
-            save_data(data)
-
-            dragon_name = current_dragon['name']
-            custom_fail = fail_messages.get(dragon_name, "It got away!")
-
-            # Determine cooldown time
-            if dragon_name == "Astral Elder Dragon": wait_time = 120
-            elif dragon_name == "Red Dragon": wait_time = 30
-            else: wait_time = 15
-            
-            last_roll_time[user_id] = current_time + wait_time
-            
-            # Combined fail message with cooldown timer
-            await ctx.send(f"{mention} {current_sound}\n{custom_fail}\n(Rolled {base_roll} + {pity_bonus} luck. Total: {total_roll})\n**You can't roll for {wait_time}s!**")
+        await ctx.send(f"{mention} {current_sound}\n{custom_fail}")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
 async def hlb(ctx):
