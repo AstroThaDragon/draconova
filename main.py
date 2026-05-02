@@ -300,7 +300,7 @@ async def rd(ctx):
 
         if hunt_cd_key in last_roll_time and current_time < last_roll_time[hunt_cd_key]:
             seconds_left = int(last_roll_time[hunt_cd_key] - current_time)
-            return await ctx.send(f"{mention} Wait **{seconds_left}s** to roll again!")
+            return await ctx.send(f"{mention} {custom_fail} Wait **{seconds_left}s** to roll again!")
 
         data = load_data()
         uid = str(user_id)
