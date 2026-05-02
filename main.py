@@ -372,10 +372,10 @@ async def rd(ctx):
     
     if no_spawn_cd_key in last_roll_time and current_time < last_roll_time[no_spawn_cd_key]:
         seconds_left = int(last_roll_time[no_spawn_cd_key] - current_time)
-        return await ctx.send(f"{mention} Wait **{seconds_left}s**!")
+        return await ctx.send(f"{mention} You were whooshed! There's no active spawn! Wait **{seconds_left}s** to try again!")
 
     last_roll_time[no_spawn_cd_key] = current_time + 5
-    await ctx.send(f"{mention} *Whoosh*\nThere's no active spawn!")
+    await ctx.send(f"{mention} *Whoosh*")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
 async def hlb(ctx):
