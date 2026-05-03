@@ -9,6 +9,8 @@ import random
 import asyncio
 import json
 import os
+import aiohttp
+import io
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -398,15 +400,21 @@ async def spawn_dragon_loop():
         else:
             current_dragon = random.choice(all_normals)
 
-        # Build the message string
+        # Execution - Direct Upload Style
         spawn_text = f"{current_dragon['sound']}"
         
-        # If there's an image, add the link on a new line
         if current_dragon.get('image_url'):
-            spawn_text += f"\n{current_dragon['image_url']}"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(current_dragon['image_url']) as resp:
+                    if resp.status == 200:
+                        data = io.BytesIO(await resp.read())
+                        discord_file = discord.File(data, filename="spawn.png")
+                        last_spawn_message = await channel.send(content=spawn_text, file=discord_file)
+                    else:
+                        last_spawn_message = await channel.send(spawn_text)
+        else:
+            last_spawn_message = await channel.send(spawn_text)
 
-        # Send it as a plain message
-        last_spawn_message = await channel.send(spawn_text)
         next_spawn_time = 0
 
 # --- EVENTS ---
@@ -688,17 +696,22 @@ async def spawn(ctx, *, target_name: str = None):
         current_dragon = random.choice(all_pools)
         await ctx.send(f"🎲 Random spawn: **{current_dragon['name']}**")
 
-    # Execution - Plain text style
+    # Execution - Direct Upload Style
     try:
-        # 1. Start with the sound
-        spawn_content = f"{current_dragon['sound']}"
+        spawn_text = f"{current_dragon['sound']}"
         
-        # 2. Add the image URL on a new line if it exists
         if current_dragon.get('image_url'):
-            spawn_content += f"\n{current_dragon['image_url']}"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(current_dragon['image_url']) as resp:
+                    if resp.status == 200:
+                        data = io.BytesIO(await resp.read())
+                        discord_file = discord.File(data, filename="spawn.png")
+                        last_spawn_message = await channel.send(content=spawn_text, file=discord_file)
+                    else:
+                        last_spawn_message = await channel.send(spawn_text)
+        else:
+            last_spawn_message = await channel.send(spawn_text)
 
-        # 3. Send as a regular message
-        last_spawn_message = await channel.send(spawn_content)
         next_spawn_time = 0 
     except Exception as e:
         print(f"ERROR DURING SEND: {e}")
