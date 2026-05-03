@@ -88,7 +88,19 @@ ASTRAL_CREATURES = [
             "He WILL glorp. Be careful!"
         ),
         "image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/main/images/glorpy.png"
-    }
+    },
+    {
+	"name": "Alien Larry",
+	"sound": "*Silence...?*",
+	"points": 30,
+	"cooldown": 45,
+	"description": (
+	    "Larry... but alien."
+	    "Didn't think he can get any worse."
+	    "*I was wrong.*"
+	    "**Run.**"
+	),
+	"image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/main/images/alien-larry.png"
 ]
 
 SHINY = [
