@@ -253,7 +253,7 @@ class DracoDexView(discord.ui.View):
         data = load_data()
         self.user_lifetime_inv = data.get(self.user_id, {}).get("lifetime_inventory", {})
 
-        def get_rarity_info(self, entry):
+    def get_rarity_info(self, entry):
         # 1. Check for the Shiny tag first
         if entry.get('is_shiny'):
             return discord.Color.gold(), "✨ SHINY ✨"
