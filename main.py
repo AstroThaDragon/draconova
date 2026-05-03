@@ -261,25 +261,29 @@ class DracoDexView(discord.ui.View):
         discovered_count = len([e for e in self.entries if e['name'] in self.user_lifetime_inv])
         percent = (discovered_count / total_types) * 100
 
+        # Title and Color now persist regardless of discovery
         embed = discord.Embed(
-            title=f"DracoDex - {entry['name'] if discovered else '???'}", 
-            color=color if discovered else discord.Color.dark_gray()
+            title=f"DracoDex - {entry['name']}", 
+            color=color
         )
         
-        # Hidden Info Logic
-        desc = entry.get('description', "No lore discovered yet.") if discovered else "*This creature has not been discovered yet. Catch one to unlock its secrets!*"
+        # Lore is hidden until caught
+        desc = entry.get('description', "No lore discovered yet.") if discovered else "*This entry's secrets are still hidden. Catch one to unlock the lore!*"
+        
+        # Only specific technical details are masked with ???
         sound = entry['sound'] if discovered else "???"
         cooldown = f"{entry['cooldown']}s" if discovered else "???"
         
         embed.description = (
             f"**Completion: {percent:.1f}%** ({discovered_count}/{total_types})\n"
-            f"**[{rarity_label if discovered else '???' } | {category if discovered else '???'}]**\n\n"
+            f"**[{rarity_label} | {category}]**\n\n"
             f"{desc}\n\n"
             f"**Sound:** {sound}\n"
             f"**Points:** {entry['points']} points\n"
             f"**Catch Cooldown:** {cooldown}"
         )
         
+        # Images remain hidden until discovery to keep the visual surprise
         if discovered and entry.get('image_url'):
             embed.set_image(url=entry['image_url'])
         
