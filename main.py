@@ -534,7 +534,7 @@ async def rd(ctx):
             "Glowing Meteor": "*Fwoosh-hiss!*", 
             "Void Fragment": "*V-v-v-vrrrrmmm...*",
             "Glorpy": "*GlOrP!*",
-            "Shiny Glorpy": "*Shiny GlOrP! noises*"
+            "Shiny Glorpy": "*Shiny GlOrP! noises*",
 	    "Alien Larry": "*Peeeeenaaarrr.*"
         }
         current_sound = roll_sounds.get(dragon_name, "*Clink!*")
