@@ -221,12 +221,28 @@ class LeaderboardView(discord.ui.View):
 class DracoDexView(discord.ui.View):
     def __init__(self, user_id, user_name):
         super().__init__(timeout=60)
-        self.entries = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
-        self.index = 0
         self.user_id = str(user_id)
         self.user_name = user_name
         
-        # Load user data to check for discovered entries
+        # 1. Combine all possible entries
+        all_entries = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
+        
+        # 2. Define the sorting logic
+        def get_sort_weight(entry):
+            if entry.get('is_shiny'):
+                return 4  # Shinies last
+            pts = entry.get('points', 0)
+            if pts <= 5:
+                return 1  # Commons first
+            elif pts <= 15:
+                return 2  # Rares second
+            else:
+                return 3  # Legendaries third
+
+        # 3. Sort the list: first by rarity weight, then alphabetically by name
+        self.entries = sorted(all_entries, key=lambda x: (get_sort_weight(x), x['name']))
+        
+        self.index = 0
         data = load_data()
         self.user_lifetime_inv = data.get(self.user_id, {}).get("lifetime_inventory", {})
 
@@ -253,24 +269,18 @@ class DracoDexView(discord.ui.View):
         color, rarity_label = self.get_rarity_info(entry)
         category = self.get_category(entry)
         
-        # Check Discovery Status
         discovered = entry['name'] in self.user_lifetime_inv
         
-        # Completion Progress Logic
         total_types = len(self.entries)
         discovered_count = len([e for e in self.entries if e['name'] in self.user_lifetime_inv])
         percent = (discovered_count / total_types) * 100
 
-        # Title and Color now persist regardless of discovery
         embed = discord.Embed(
             title=f"DracoDex - {entry['name']}", 
             color=color
         )
         
-        # Lore is hidden until caught
         desc = entry.get('description', "No lore discovered yet.") if discovered else "*This entry's secrets are still hidden. Catch one to unlock the lore!*"
-        
-        # Only specific technical details are masked with ???
         sound = entry['sound'] if discovered else "???"
         cooldown = f"{entry['cooldown']}s" if discovered else "???"
         
@@ -283,7 +293,6 @@ class DracoDexView(discord.ui.View):
             f"**Catch Cooldown:** {cooldown}"
         )
         
-        # Images remain hidden until discovery to keep the visual surprise
         if discovered and entry.get('image_url'):
             embed.set_image(url=entry['image_url'])
         
