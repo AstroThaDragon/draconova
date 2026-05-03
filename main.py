@@ -263,7 +263,7 @@ class DracoDexView(discord.ui.View):
         # 2. Then check point-based rarities
         if pts <= 15:
             return discord.Color.green(), "Common"
-        elif pts <= 40:
+        elif pts <= 35:
             return discord.Color.blue(), "Rare"
         elif pts <= 50:
             return discord.Color.purple(), "Legendary"
