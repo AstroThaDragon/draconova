@@ -537,16 +537,21 @@ async def dex(ctx, *, search_query: str = None):
         if found_index is not None:
             view.index = found_index
         else:
-            await ctx.send(f"🔍 No entry found for `{search_query}`. Opening at page 1...", delete_after=5)
+            await ctx.send(f"🔍 No entry found for `{search_query}`. Opening at start...", delete_after=5)
 
-    # 2. Memory Logic (Jump to the latest spawn if no search was entered)
+    # 2. Memory Logic (Jump to the active spawn)
     elif current_dragon:
+        # We use a case-insensitive check here to be safer
         found_index = next((i for i, entry in enumerate(view.entries) 
-                           if entry['name'] == current_dragon['name']), None)
+                           if entry['name'].lower() == current_dragon['name'].lower()), None)
         if found_index is not None:
             view.index = found_index
 
-    await ctx.send(embed=view.create_embed(), view=view)
+    try:
+        await ctx.send(embed=view.create_embed(), view=view)
+    except Exception as e:
+        print(f"Dex Error: {e}")
+        await ctx.send("An error occurred opening the DracoDex.")
 
 # --- ADMIN COMMANDS ---
 
@@ -556,37 +561,28 @@ async def spawn(ctx, *, target_name: str = None):
     """Admin only: Spawns a specific dragon/item or a random one."""
     global current_dragon, last_spawn_message, next_spawn_time
     
-    # Get the designated channel
     channel = bot.get_channel(spawn_channel_id)
     if not channel:
-        return await ctx.send(f"❌ Error: Spawn channel (ID: {spawn_channel_id}) not found.")
+        return await ctx.send(f"❌ Error: Spawn channel not found.")
 
     all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
 
     if target_name:
-        # 1. Try Exact Match first
-        match = next((d for d in all_pools if d['name'].lower() == target_name.lower()), None)
-        
-        # 2. If no exact match, try Partial Match (e.g., "dragon" matches "Red Dragon")
-        if not match:
-            match = next((d for d in all_pools if target_name.lower() in d['name'].lower()), None)
-
+        # Search for the best match
+        match = next((d for d in all_pools if target_name.lower() in d['name'].lower()), None)
         if match:
             current_dragon = match
         else:
-            # SAFETY CHECK: Feedback when name isn't found
-            return await ctx.send(f"❓ Could not find any creature or item matching `{target_name}`. Check your spelling!")
+            return await ctx.send(f"❓ No match found for `{target_name}`.")
     else:
-        # Spawn random if no name provided
         current_dragon = random.choice(all_pools)
 
-    # Trigger the spawn
+    # Force the spawn to happen
     last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
     next_spawn_time = 0 
     
-    # Confirm to the admin in the current channel if they aren't in the spawn channel
     if ctx.channel.id != spawn_channel_id:
-        await ctx.send(f"✅ Spawned **{current_dragon['name']}** in <#{spawn_channel_id}>.")
+        await ctx.send(f"✅ Forced spawn: **{current_dragon['name']}**.")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
