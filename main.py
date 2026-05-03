@@ -398,18 +398,15 @@ async def spawn_dragon_loop():
         else:
             current_dragon = random.choice(all_normals)
 
-        # --- NEW EMBED LOGIC ---
-        embed = discord.Embed(
-            title="A Wild Appearance!",
-            description=f"{current_dragon['sound']}",
-            color=discord.Color.random()
-        )
+        # Build the message string
+        spawn_text = f"{current_dragon['sound']}"
         
-        # This line checks if the dragon has an image_url and adds it to the spawn message
+        # If there's an image, add the link on a new line
         if current_dragon.get('image_url'):
-            embed.set_image(url=current_dragon['image_url'])
+            spawn_text += f"\n{current_dragon['image_url']}"
 
-        last_spawn_message = await channel.send(embed=embed)
+        # Send it as a plain message
+        last_spawn_message = await channel.send(spawn_text)
         next_spawn_time = 0
 
 # --- EVENTS ---
@@ -691,17 +688,17 @@ async def spawn(ctx, *, target_name: str = None):
         current_dragon = random.choice(all_pools)
         await ctx.send(f"🎲 Random spawn: **{current_dragon['name']}**")
 
-    # Execution
+    # Execution - Plain text style
     try:
-        embed = discord.Embed(
-            title="Admin Spawn triggered!",
-            description=f"{current_dragon['sound']}",
-            color=discord.Color.gold()
-        )
+        # 1. Start with the sound
+        spawn_content = f"{current_dragon['sound']}"
+        
+        # 2. Add the image URL on a new line if it exists
         if current_dragon.get('image_url'):
-            embed.set_image(url=current_dragon['image_url'])
+            spawn_content += f"\n{current_dragon['image_url']}"
 
-        last_spawn_message = await channel.send(embed=embed)
+        # 3. Send as a regular message
+        last_spawn_message = await channel.send(spawn_content)
         next_spawn_time = 0 
     except Exception as e:
         print(f"ERROR DURING SEND: {e}")
