@@ -78,6 +78,29 @@ def save_data(data):
         json.dump(data, f, indent=4)
 
 # --- INTERFACES (VIEWS) ---
+class ConfirmResetView(discord.ui.View):
+    def __init__(self, target_member, admin_user):
+        super().__init__(timeout=30)
+        self.target_member = target_member
+        self.admin_user = admin_user
+        self.value = None
+
+    @discord.ui.button(label="Confirm Reset", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.admin_user:
+            return await interaction.response.send_message("You didn't start this command!", ephemeral=True)
+        self.value = True
+        self.stop()
+        await interaction.response.defer()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.admin_user:
+            return await interaction.response.send_message("You didn't start this command!", ephemeral=True)
+        self.value = False
+        self.stop()
+        await interaction.response.defer()
+
 class LeaderboardView(discord.ui.View):
     def __init__(self, data, title, key_type, requester):
         super().__init__(timeout=60)
@@ -436,9 +459,14 @@ async def rd(ctx):
             data[uid]["monthly"] += current_dragon['points']
             data[uid]["global"] += current_dragon['points']
             
+            # Seasonal Inventory
             inv = data[uid].get("inventory", {})
             inv[dragon_name] = inv.get(dragon_name, 0) + 1
             data[uid]["inventory"] = inv
+
+            # --- LIFETIME INVENTORY ---
+            life_inv = data[uid].setdefault("lifetime_inventory", {})
+            life_inv[dragon_name] = life_inv.get(dragon_name, 0) + 1
 
             for player_id in data:
                 data[player_id]["pity"] = 0
@@ -501,33 +529,77 @@ async def dex(ctx):
     await ctx.send(embed=view.create_embed(), view=view)
 
 # --- ADMIN COMMANDS ---
+
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def spawn(ctx):
+async def spawn(ctx, *, target_name: str = None):
+    """Admin only: Spawns a specific dragon by name or a random one."""
     global current_dragon, last_spawn_message, next_spawn_time
     channel = bot.get_channel(spawn_channel_id)
-    # Combine lists for manual admin spawn
     all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
-    current_dragon = random.choice(all_pools)
+
+    if target_name:
+        # Search for name match
+        match = next((d for d in all_pools if d['name'].lower() == target_name.lower()), None)
+        if match:
+            current_dragon = match
+        else:
+            return await ctx.send(f"❌ Could not find an entry named `{target_name}`.")
+    else:
+        current_dragon = random.choice(all_pools)
+
     last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
     next_spawn_time = 0 
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def reset(ctx, member: discord.Member = None):
+    """Admin only: Resets seasonal data for a user or self."""
     member = member or ctx.author
     data = load_data()
     uid = str(member.id)
 
     if uid in data:
         data[uid]['monthly'] = 0
-        data[uid]['global'] = 0
         data[uid]['inventory'] = {}
         data[uid]['pity'] = 0
         save_data(data)
-        await ctx.send(f"🧹 **Hoard Purged:** All points and seasonal catches for {member.display_name} have been reset.")
+        await ctx.send(f"🧹 **Hoard Purged:** Seasonal points and catches for {member.display_name} have been reset.")
     else:
         await ctx.send(f"Target {member.display_name} doesn't have a hoard yet!")
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def reset_lifetime(ctx, member: discord.Member = None):
+    """Admin only: Resets ALL data for a user or self with confirmation."""
+    target = member or ctx.author
+    view = ConfirmResetView(target, ctx.author)
+    
+    msg = await ctx.send(
+        f"⚠️ **ARE YOU ABSOLUTELY SURE?** ⚠️\n"
+        f"This will permanently delete ALL lifetime records for **{target.display_name}**.",
+        view=view
+    )
+
+    await view.wait()
+
+    if view.value is None:
+        await msg.edit(content="⌛ Reset request timed out.", view=None)
+    elif view.value:
+        data = load_data()
+        uid = str(target.id)
+        if uid in data:
+            data[uid]['lifetime_inventory'] = {}
+            data[uid]['global'] = 0
+            data[uid]['wins'] = 0
+            data[uid]['monthly'] = 0
+            data[uid]['inventory'] = {}
+            save_data(data)
+            await msg.edit(content=f"🗑️ **LIFETIME WIPE COMPLETE:** All records for {target.display_name} have been erased.", view=None)
+        else:
+            await msg.edit(content="Target doesn't have a profile to delete.", view=None)
+    else:
+        await msg.edit(content="❌ Reset cancelled.", view=None)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
