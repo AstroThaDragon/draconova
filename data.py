@@ -95,8 +95,7 @@ ASTRAL_CREATURES = [
 	"points": 30,
 	"cooldown": 45,
 	"description": (
-	    "Larry... but alien."
-	    "Didn't think he can get any worse. I was wrong. **Run.**"
+	    "Larry... but alien. Didn't think he can get any worse. I was wrong. **Run.**"
 	),
 	"image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/main/images/alien-larry.png"
     }
