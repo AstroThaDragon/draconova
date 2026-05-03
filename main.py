@@ -1,3 +1,6 @@
+# © 2026 The Cosmic Lair & AstroThaDragon. All Rights Reserved. 
+# Unauthorized use of this code is prohibited.
+
 import discord
 from discord.ext import commands, tasks
 from data import DRAGONS, ITEMS, ASTRAL_CREATURES, SHINY, THRESHOLDS
