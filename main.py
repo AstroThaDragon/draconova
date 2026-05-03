@@ -562,34 +562,53 @@ async def spawn(ctx, *, target_name: str = None):
     global current_dragon, last_spawn_message, next_spawn_time
     
     channel = bot.get_channel(spawn_channel_id)
-    all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY 
+    if not channel:
+        return await ctx.send(f"❌ Channel ID `{spawn_channel_id}` not found!")
+
+    # Explicitly combine the pools
+    all_pools = []
+    all_pools.extend(DRAGONS)
+    all_pools.extend(ITEMS)
+    all_pools.extend(ASTRAL_CREATURES)
+    all_pools.extend(SHINY)
+
+    # DEBUG: Check terminal to see if all 8 items are here
+    print(f"DEBUG: Total items in pool: {len(all_pools)}")
 
     if target_name:
-        # Replace underscores with spaces so 'astral_elder_dragon' becomes 'astral elder dragon'
+        # Standardize query
         query = target_name.lower().replace('_', ' ').strip()
         
-        # EXACT MATCH LOGIC
-        # This will only work if the full name matches what's in data.py
-        match = next((d for d in all_pools if d.get('name', '').lower() == query), None)
+        # Exact match logic
+        match = None
+        for item in all_pools:
+            if item.get('name', '').lower().strip() == query:
+                match = item
+                break
         
         if match:
             current_dragon = match
-            await ctx.send(f"✅ Exact match found: **{match['name']}**. Spawning...")
+            await ctx.send(f"✅ Match found: **{match['name']}**. Spawning...")
         else:
-            # If it's not an exact match, the bot tells you and stops
-            return await ctx.send(f"❌ No exact match for `{target_name}`. Please use the full name.")
+            # List names to help you see what the bot expects
+            valid_names = ", ".join([d['name'] for d in all_pools])
+            print(f"DEBUG: Failed to match '{query}'. Available names: {valid_names}")
+            return await ctx.send(f"❌ No exact match for `{target_name}`. Check your spelling!")
     else:
         current_dragon = random.choice(all_pools)
-        await ctx.send("🎲 Spawning random encounter...")
+        await ctx.send(f"🎲 Random spawn: **{current_dragon['name']}**")
 
+    # Execution
     try:
+        # Use a generic error message so we know if it's a Discord permission issue
         last_spawn_message = await channel.send(
             f"{current_dragon['sound']}\n\n"
             f"A wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!"
         )
         next_spawn_time = 0 
     except Exception as e:
-        await ctx.send(f"❌ Error finding dex entry: {e}")
+        print(f"ERROR DURING SEND: {e}")
+        await ctx.send(f"❌ Failed to send message to spawn channel: {e}")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
