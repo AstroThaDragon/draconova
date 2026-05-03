@@ -556,7 +556,7 @@ async def rd(ctx):
                 pity_bonus = THRESHOLDS["pity_cap"]
             total_roll = base_roll + pity_bonus
             
-	    if current_dragon['points'] <= 15: 
+            if current_dragon['points'] <= 15: 
                 threshold = THRESHOLDS["common"]      # 1 to 15 points
             elif current_dragon['points'] <= 40: 
                 threshold = THRESHOLDS["rare"]        # 16 to 40 points
