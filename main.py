@@ -530,21 +530,25 @@ async def dex(ctx, *, search_query: str = None):
     view = DracoDexView(ctx.author.display_name)
     
     try:
-        # 1. Search Logic (e.g. !dd astral)
+        # 1. Manual Search Logic
         if search_query:
+            search = search_query.lower().strip()
             found_index = next((i for i, entry in enumerate(view.entries) 
-                               if search_query.lower() in entry['name'].lower()), None)
+                               if search in entry['name'].lower()), None)
             if found_index is not None:
                 view.index = found_index
             else:
                 await ctx.send(f"🔍 No entry found for `{search_query}`.", delete_after=5)
 
-        # 2. Memory Logic (Jump to the active spawn)
+        # 2. Auto-Jump Logic (Jump to the active spawn)
         elif current_dragon is not None:
-            # We look for the name string specifically to avoid object comparison errors
-            target_name = current_dragon.get('name', "").lower()
+            # We strip spaces and use lowercase to ensure a perfect match
+            target_name = current_dragon.get('name', "").lower().strip()
+            
+            # Find the index in the combined entries list
             found_index = next((i for i, entry in enumerate(view.entries) 
-                               if entry['name'].lower() == target_name), None)
+                               if entry['name'].lower().strip() == target_name), None)
+            
             if found_index is not None:
                 view.index = found_index
 
@@ -552,7 +556,6 @@ async def dex(ctx, *, search_query: str = None):
         
     except Exception as e:
         print(f"DEX ERROR: {e}")
-        # Fallback: Just open the dex at page 0 if the 'active spawn' logic crashed it
         view.index = 0
         await ctx.send(embed=view.create_embed(), view=view)
 
@@ -564,29 +567,28 @@ async def spawn(ctx, *, target_name: str = None):
     """Admin only: Spawns a specific dragon/item or a random one."""
     global current_dragon, last_spawn_message, next_spawn_time
     
-    # Safety: Ensure the channel exists
     channel = bot.get_channel(spawn_channel_id)
     if not channel:
-        return await ctx.send(f"❌ Error: I cannot find channel ID `{spawn_channel_id}`. Check your config!")
+        return await ctx.send(f"❌ Error: Channel `{spawn_channel_id}` not found.")
 
+    # Combined pool of everything possible
     all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
 
     if target_name:
-        # Clean the input
         search = target_name.strip().lower()
-        # Find match where search is IN the name
+        # Find match where search string is contained within the name
         match = next((d for d in all_pools if search in d['name'].lower()), None)
         
         if match:
             current_dragon = match
-            await ctx.send(f"🎯 Matching found: **{match['name']}**. Spawning now...")
+            # Alert the admin that the match was successful
+            await ctx.send(f"✅ Found: **{match['name']}**. Sending to <#{spawn_channel_id}>...")
         else:
-            return await ctx.send(f"❓ No dragon or item matches `{target_name}`. Use the exact name from the Dex!")
+            return await ctx.send(f"❓ No match for `{target_name}`. Try a shorter keyword like 'astral'.")
     else:
         current_dragon = random.choice(all_pools)
-        await ctx.send(f"🎲 Spawning a random encounter...")
+        await ctx.send(f"🎲 Spawning random encounter...")
 
-    # Execute the spawn message in the designated channel
     try:
         last_spawn_message = await channel.send(
             f"{current_dragon['sound']}\n\n"
