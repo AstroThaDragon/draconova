@@ -122,34 +122,57 @@ class LeaderboardView(discord.ui.View):
 class DracoDexView(discord.ui.View):
     def __init__(self, user_name):
         super().__init__(timeout=60)
-        # Combine all pools to show everything in the dex
         self.entries = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
         self.index = 0
         self.user_name = user_name
 
+    def get_rarity_info(self, entry):
+        """Helper to get color and rarity name based on points/shiny status"""
+        if entry.get('is_shiny'):
+            return discord.Color.gold(), "✨ SHINY ✨"
+        
+        pts = entry.get('points', 0)
+        
+        if pts <= 5:
+            return discord.Color.green(), "Common"
+        elif pts <= 15:
+            return discord.Color.blue(), "Rare"
+        else:
+            return discord.Color.purple(), "Legendary"
+
+    def get_category(self, entry):
+        """Helper to determine the type of entry"""
+        if entry in DRAGONS: return "Dragon"
+        if entry in ITEMS: return "Space Item"
+        if entry in ASTRAL_CREATURES: return "Astral Creature"
+        if entry in SHINY: return "Ultra Rare"
+        return "Unknown"
+
     def create_embed(self):
         entry = self.entries[self.index]
-        is_shiny = entry.get('is_shiny', False)
+        color, rarity_label = self.get_rarity_info(entry)
+        category = self.get_category(entry)
         
-        color = discord.Color.gold() if is_shiny else discord.Color.blue()
-        title = f"DracoDex: {entry['name']}"
+        embed = discord.Embed(
+            title=f"DracoDex - {entry['name']}", 
+            color=color
+        )
         
-        embed = discord.Embed(title=title, color=color)
+        desc = entry.get('description', "No lore discovered yet.")
         
-        # Pull the description from your data.py!
-        desc = entry.get('description', "No lore discovered for this creature yet.")
-        
+        # Categorizing inside the embed body
         embed.description = (
+            f"**[{rarity_label} | {category}]**\n\n"
             f"{desc}\n\n"
             f"**Sound:** {entry['sound']}\n"
-            f"**Worth:** {entry['points']} points\n"
+            f"**Points:** {entry['points']} points\n"
             f"**Catch Cooldown:** {entry['cooldown']}s"
         )
         
         if entry.get('image_url'):
             embed.set_image(url=entry['image_url'])
-        else:
-            embed.set_footer(text=f"Entry {self.index + 1}/{len(self.entries)} | {self.user_name}'s Dex")
+        
+        embed.set_footer(text=f"Entry {self.index + 1}/{len(self.entries)} | DracoDex")
             
         return embed
 
