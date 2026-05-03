@@ -78,6 +78,82 @@ def save_data(data):
         json.dump(data, f, indent=4)
 
 # --- INTERFACES (VIEWS) ---
+
+class HoardHelpView(discord.ui.View):
+    def __init__(self, requester):
+        super().__init__(timeout=60)
+        self.page = 1
+        self.requester = requester
+
+    def create_embed(self):
+        if self.page == 1:
+            embed = discord.Embed(
+                title="🐲 Dragon Catcher - Player Guide (1/2)",
+                description="Track your progress and catch rare beasts! Here are the commands you can use:",
+                color=discord.Color.green()
+            )
+            embed.add_field(
+                name="🎮 Gameplay", 
+                value="`!rd` - Try to catch a dragon when one appears.\n"
+                      "⚠️ *At **200 monthly points**, catching becomes harder (+10 difficulty)!*", 
+                inline=False
+            )
+            embed.add_field(
+                name="👤 Stats", 
+                value="`!profile` (or `!p`, `!stats`) - View your rank and rarest catches.", 
+                inline=False
+            )
+            embed.add_field(
+                name="📖 Lore", 
+                value="`!dex` (or `!dd`, `!dracodex`) - View information on all known dragons and items.", 
+                inline=False
+            )
+            embed.add_field(
+                name="📊 Leaderboards", 
+                value="`!hlb` (or `!hoard`) - Monthly rankings.\n"
+                      "`!ghlb` (or `!lifetimehoard`) - Lifetime rankings.", 
+                inline=False
+            )
+            embed.set_footer(text=f"Page 1/2 | Requested by {self.requester}")
+            return embed
+        else:
+            embed = discord.Embed(
+                title="📖 In-Depth Mechanics (2/2)",
+                description="How to master the hoard and climb the ranks.",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="🏹 How to Play", 
+                value="Dragons spawn randomly in the spawn channel. Use `!rd` to roll your dice. Success depends on the creature's rarity (Common, Rare, Legendary). Be quick—only one person can catch a spawned dragon!", 
+                inline=False
+            )
+            embed.add_field(
+                name="📈 Monthly Leaderboard", 
+                value="Every catch earns points. At the end of each month, the leaderboard resets and the top 10 are announced! Your global lifetime points (`!ghlb`) are permanent and never reset.", 
+                inline=False
+            )
+            embed.add_field(
+                name="🔥 Hard Mode & Pity", 
+                value="Reach **200 points** in a month to trigger Hard Mode (+10 difficulty). If you fail a catch, you gain **+0.5 Pity**, making your next roll easier (capped at 15)!", 
+                inline=False
+            )
+            embed.set_footer(text=f"Page 2/2 | Requested by {self.requester}")
+            return embed
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.gray, disabled=True)
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = 1
+        button.disabled = True
+        self.next_button.disabled = False
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
+    @discord.ui.button(label="Next Page", style=discord.ButtonStyle.blurple)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = 2
+        button.disabled = True
+        self.back_button.disabled = False
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
 class ConfirmResetView(discord.ui.View):
     def __init__(self, target_member, admin_user):
         super().__init__(timeout=30)
@@ -143,19 +219,21 @@ class LeaderboardView(discord.ui.View):
             await interaction.response.defer()
 
 class DracoDexView(discord.ui.View):
-    def __init__(self, user_name):
+    def __init__(self, user_id, user_name):
         super().__init__(timeout=60)
         self.entries = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
         self.index = 0
+        self.user_id = str(user_id)
         self.user_name = user_name
+        
+        # Load user data to check for discovered entries
+        data = load_data()
+        self.user_lifetime_inv = data.get(self.user_id, {}).get("lifetime_inventory", {})
 
     def get_rarity_info(self, entry):
-        """Helper to get color and rarity name based on points/shiny status"""
         if entry.get('is_shiny'):
             return discord.Color.gold(), "✨ SHINY ✨"
-        
         pts = entry.get('points', 0)
-        
         if pts <= 5:
             return discord.Color.green(), "Common"
         elif pts <= 15:
@@ -164,7 +242,6 @@ class DracoDexView(discord.ui.View):
             return discord.Color.purple(), "Legendary"
 
     def get_category(self, entry):
-        """Helper to determine the type of entry"""
         if entry in DRAGONS: return "Dragon"
         if entry in ITEMS: return "Space Item"
         if entry in ASTRAL_CREATURES: return "Astral Creature"
@@ -176,27 +253,37 @@ class DracoDexView(discord.ui.View):
         color, rarity_label = self.get_rarity_info(entry)
         category = self.get_category(entry)
         
+        # Check Discovery Status
+        discovered = entry['name'] in self.user_lifetime_inv
+        
+        # Completion Progress Logic
+        total_types = len(self.entries)
+        discovered_count = len([e for e in self.entries if e['name'] in self.user_lifetime_inv])
+        percent = (discovered_count / total_types) * 100
+
         embed = discord.Embed(
-            title=f"DracoDex - {entry['name']}", 
-            color=color
+            title=f"DracoDex - {entry['name'] if discovered else '???'}", 
+            color=color if discovered else discord.Color.dark_gray()
         )
         
-        desc = entry.get('description', "No lore discovered yet.")
+        # Hidden Info Logic
+        desc = entry.get('description', "No lore discovered yet.") if discovered else "*This creature has not been discovered yet. Catch one to unlock its secrets!*"
+        sound = entry['sound'] if discovered else "???"
+        cooldown = f"{entry['cooldown']}s" if discovered else "???"
         
-        # Categorizing inside the embed body
         embed.description = (
-            f"**[{rarity_label} | {category}]**\n\n"
+            f"**Completion: {percent:.1f}%** ({discovered_count}/{total_types})\n"
+            f"**[{rarity_label if discovered else '???' } | {category if discovered else '???'}]**\n\n"
             f"{desc}\n\n"
-            f"**Sound:** {entry['sound']}\n"
+            f"**Sound:** {sound}\n"
             f"**Points:** {entry['points']} points\n"
-            f"**Catch Cooldown:** {entry['cooldown']}s"
+            f"**Catch Cooldown:** {cooldown}"
         )
         
-        if entry.get('image_url'):
+        if discovered and entry.get('image_url'):
             embed.set_image(url=entry['image_url'])
         
-        embed.set_footer(text=f"Entry {self.index + 1}/{len(self.entries)} | DracoDex")
-            
+        embed.set_footer(text=f"Entry {self.index + 1}/{len(self.entries)} | {self.user_name}'s Dex")
         return embed
 
     @discord.ui.button(label="⏮", style=discord.ButtonStyle.gray)
@@ -305,7 +392,7 @@ async def spawn_dragon_loop():
 # --- EVENTS ---
 @bot.event
 async def on_ready():
-    await bot.change_presence(activity=discord.Game(name="!hoardhelp | Catching Dragons!"))
+    await bot.change_presence(activity=discord.Game(name="!hoardhelp | Catching Dragons! 🐲"))
     
     print(f'Logged in as {bot.user.name}')
     if not spawn_dragon_loop.is_running(): 
@@ -319,17 +406,8 @@ async def on_ready():
 # --- COMMANDS ---
 @bot.command()
 async def hoardhelp(ctx):
-    embed = discord.Embed(
-        title="🐲 Dragon Catcher - Player Guide",
-        description="Track your progress and catch rare beasts! Here are the commands you can use:",
-        color=discord.Color.green()
-    )
-    embed.add_field(name="🎮 Gameplay", value="`!rd` - Try to catch a dragon when one appears.", inline=False)
-    embed.add_field(name="👤 Stats", value="`!profile` (or `!p`) - View your rank and rarest catches.", inline=False)
-    embed.add_field(name="📖 Lore", value="`!dex` - View information on all known dragons and items.", inline=False)
-    embed.add_field(name="📊 Leaderboards", value="`!hlb` - Monthly rankings.\n`!ghlb` - Lifetime rankings.", inline=False)
-    embed.set_footer(text="Watch the spawn channel for dragon sounds!")
-    await ctx.send(embed=embed)
+    view = HoardHelpView(ctx.author.display_name)
+    await ctx.send(embed=view.create_embed(), view=view)
 
 @bot.command(aliases=['p', 'stats'])
 async def profile(ctx, member: discord.Member = None):
@@ -414,7 +492,7 @@ async def rd(ctx):
         data = load_data()
         uid = str(user_id)
         if uid not in data:
-            data[uid] = {"monthly": 0, "global": 0, "wins": 0, "inventory": {}, "pity": 0}
+            data[uid] = {"monthly": 0, "global": 0, "wins": 0, "inventory": {}, "pity": 0, "lifetime_inventory": {}}
         
         if "pity" not in data[uid]: data[uid]["pity"] = 0
 
@@ -451,6 +529,9 @@ async def rd(ctx):
             elif current_dragon['points'] <= 15: threshold = THRESHOLDS["rare"]
             else: threshold = THRESHOLDS["legendary"]
 
+        if data[uid]["monthly"] >= 200:
+            threshold += 10  # Makes the required roll 10 points higher
+
         # Determine Success
         success = total_roll >= threshold
 
@@ -464,7 +545,7 @@ async def rd(ctx):
             inv[dragon_name] = inv.get(dragon_name, 0) + 1
             data[uid]["inventory"] = inv
 
-            # --- LIFETIME INVENTORY ---
+            # --- LIFETIME INVENTORY TRACKING ---
             life_inv = data[uid].setdefault("lifetime_inventory", {})
             life_inv[dragon_name] = life_inv.get(dragon_name, 0) + 1
 
@@ -501,10 +582,10 @@ async def rd(ctx):
     
     if no_spawn_cd_key in last_roll_time and current_time < last_roll_time[no_spawn_cd_key]:
         seconds_left = int(last_roll_time[no_spawn_cd_key] - current_time)
-        return await ctx.send(f"{mention} You were whooshed! There's no active spawn! Wait **{seconds_left}s** to try again!")
+        return await ctx.send(f"{mention} You tossed your dice at nothing! There's no active spawn! Wait **{seconds_left}s** to try again!")
 
     last_roll_time[no_spawn_cd_key] = current_time + 5
-    await ctx.send(f"{mention} *Whoosh*")
+    await ctx.send(f"{mention} *Clink-clack*")
 
 @bot.command(aliases=['leaderboard', 'hoard'])
 async def hlb(ctx):
@@ -526,12 +607,11 @@ async def ghlb(ctx):
 async def dex(ctx, *, search_query: str = None):
     """View the DracoDex. Defaults to the active (or most recent) spawn."""
     global current_dragon
-    view = DracoDexView(ctx.author.display_name)
+    view = DracoDexView(ctx.author.id, ctx.author.display_name)
     
     try:
         # 1. Manual Search (!dd Red Dragon)
         if search_query:
-            # Replacing underscores with spaces so !spawn astral_elder_dragon works
             query = search_query.lower().replace('_', ' ').strip()
             for i, entry in enumerate(view.entries):
                 if query == entry.get('name', '').lower():
@@ -540,7 +620,6 @@ async def dex(ctx, *, search_query: str = None):
 
         # 2. Memory Logic (Jump to the active or most recent spawn)
         elif current_dragon:
-            # We match the name exactly
             target = current_dragon.get('name', '').lower().strip()
             for i, entry in enumerate(view.entries):
                 if entry.get('name', '').lower().strip() == target:
@@ -572,14 +651,8 @@ async def spawn(ctx, *, target_name: str = None):
     all_pools.extend(ASTRAL_CREATURES)
     all_pools.extend(SHINY)
 
-    # DEBUG: Check terminal to see if all 8 items are here
-    print(f"DEBUG: Total items in pool: {len(all_pools)}")
-
     if target_name:
-        # Standardize query
         query = target_name.lower().replace('_', ' ').strip()
-        
-        # Exact match logic
         match = None
         for item in all_pools:
             if item.get('name', '').lower().strip() == query:
@@ -590,9 +663,6 @@ async def spawn(ctx, *, target_name: str = None):
             current_dragon = match
             await ctx.send(f"✅ Match found: **{match['name']}**. Spawning...")
         else:
-            # List names to help you see what the bot expects
-            valid_names = ", ".join([d['name'] for d in all_pools])
-            print(f"DEBUG: Failed to match '{query}'. Available names: {valid_names}")
             return await ctx.send(f"❌ No exact match for `{target_name}`. Check your spelling!")
     else:
         current_dragon = random.choice(all_pools)
@@ -600,7 +670,6 @@ async def spawn(ctx, *, target_name: str = None):
 
     # Execution
     try:
-        # Use a generic error message so we know if it's a Discord permission issue
         last_spawn_message = await channel.send(
             f"{current_dragon['sound']}\n\n"
             f"A wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!"
