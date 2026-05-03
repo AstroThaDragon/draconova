@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands, tasks
+from data import DRAGONS, ITEMS, ASTRAL_CREATURES, SHINY, THRESHOLDS
 import time
 import random
 import asyncio
@@ -9,7 +10,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 # --- SECURE TOKEN LOADING ---
-load_dotenv()                        
+load_dotenv()                       
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 # --- RAILWAY DATA RECOVERY (VARIABLE INJECTION) ---
@@ -46,7 +47,9 @@ fly_away_messages = {
     "Astral Elder Dragon": "*The sky cleared as the Astral Elder Dragon ascended back to the stars.*",
     "Rusty Satellite": "*The satellite's signal flickered out as it drifted into deep space.*",
     "Glowing Meteor": "*The meteor finally cooled down and stopped glowing, becoming just a rock.*",
-    "Void Fragment": "*The vibration stopped as the Void Fragment collapsed into nothingness.*"
+    "Void Fragment": "*The vibration stopped as the Void Fragment collapsed into nothingness.*",
+    "Glorpy": "*Glorpy got eepy and fled!*",
+    "✨ Glorpy ✨": "*All that's left is some sparkly green substance...*"
 }
 
 # --- CUSTOM FAIL MESSAGES ---
@@ -56,7 +59,9 @@ fail_messages = {
     "Astral Elder Dragon": "The Elder Dragon simply ignored your presence as it hummed.",
     "Rusty Satellite": "The satellite spun wildly, making it impossible to catch.",
     "Glowing Meteor": "The heat was too intense! You had to jump back!",
-    "Void Fragment": "Your hands passed right through the fragment. It's not fully in this dimension..."
+    "Void Fragment": "Your hands passed right through the fragment. It's not fully in this dimension...",
+    "Glorpy": "Your dice got glorped!",
+    "✨ Glorpy ✨": "You saw the Shiny Glorpy and got too amazed!"
 }
 
 # --- DATA HELPERS ---
@@ -72,7 +77,7 @@ def save_data(data):
     with open('data/hoard.json', 'w') as f:
         json.dump(data, f, indent=4)
 
-# --- LEADERBOARD INTERFACE ---
+# --- INTERFACES (VIEWS) ---
 class LeaderboardView(discord.ui.View):
     def __init__(self, data, title, key_type, requester):
         super().__init__(timeout=60)
@@ -113,6 +118,60 @@ class LeaderboardView(discord.ui.View):
             await interaction.response.edit_message(embed=self.create_embed(), view=self)
         else:
             await interaction.response.defer()
+
+class DracoDexView(discord.ui.View):
+    def __init__(self, user_name):
+        super().__init__(timeout=60)
+        # Combine all pools to show everything in the dex
+        self.entries = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
+        self.index = 0
+        self.user_name = user_name
+
+    def create_embed(self):
+        entry = self.entries[self.index]
+        is_shiny = entry.get('is_shiny', False)
+        
+        color = discord.Color.gold() if is_shiny else discord.Color.blue()
+        title = f"DracoDex: {entry['name']}"
+        
+        embed = discord.Embed(title=title, color=color)
+        
+        # Pull the description from your data.py!
+        desc = entry.get('description', "No lore discovered for this creature yet.")
+        
+        embed.description = (
+            f"{desc}\n\n"
+            f"**Sound:** {entry['sound']}\n"
+            f"**Worth:** {entry['points']} points\n"
+            f"**Catch Cooldown:** {entry['cooldown']}s"
+        )
+        
+        if entry.get('image_url'):
+            embed.set_image(url=entry['image_url'])
+        else:
+            embed.set_footer(text=f"Entry {self.index + 1}/{len(self.entries)} | {self.user_name}'s Dex")
+            
+        return embed
+
+    @discord.ui.button(label="⏮", style=discord.ButtonStyle.gray)
+    async def first_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = 0
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.blurple)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = (self.index - 1) % len(self.entries)
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.blurple)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = (self.index + 1) % len(self.entries)
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
+    @discord.ui.button(label="⏭", style=discord.ButtonStyle.gray)
+    async def last_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = len(self.entries) - 1
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
 
 # --- TASKS ---
 @tasks.loop(hours=24)
@@ -173,24 +232,27 @@ async def despawn_timer():
 async def spawn_dragon_loop():
     global current_dragon, last_spawn_message, next_spawn_time
     
+    # 1. Handle Timer Reset
     if next_spawn_time == 0:
         wait_seconds = random.randint(300, 1800)
         next_spawn_time = time.time() + wait_seconds
         return
 
+    # 2. Handle the Actual Spawn
     if time.time() >= next_spawn_time and current_dragon is None:
         channel = bot.get_channel(spawn_channel_id)
         if channel is None: return
 
-        dragons = [
-            {"name": "Red Dragon", "sound": "**Rawr!**", "points": 5, "cooldown": 30},
-            {"name": "Basic Dragon Egg", "sound": "*Crackle...*", "points": 10, "cooldown": 15},
-            {"name": "Astral Elder Dragon", "sound": "*Celestial hum...*", "points": 40, "cooldown": 120}, 
-            {"name": "Rusty Satellite", "sound": "*Static whir...*", "points": 3, "cooldown": 30},
-            {"name": "Glowing Meteor", "sound": "*Sizzle!*", "points": 15, "cooldown": 45},
-            {"name": "Void Fragment", "sound": "*Vibration...*", "points": 30, "cooldown": 60} 
-        ]
-        current_dragon = random.choice(dragons)
+        # Combine all normal pools
+        all_normals = DRAGONS + ITEMS + ASTRAL_CREATURES
+        
+        shiny_roll = random.uniform(0, 100) 
+        
+        if shiny_roll <= 0.4:
+            current_dragon = random.choice(SHINY)
+        else:
+            current_dragon = random.choice(all_normals)
+
         last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
         next_spawn_time = 0
 
@@ -218,6 +280,7 @@ async def hoardhelp(ctx):
     )
     embed.add_field(name="🎮 Gameplay", value="`!rd` - Try to catch a dragon when one appears.", inline=False)
     embed.add_field(name="👤 Stats", value="`!profile` (or `!p`) - View your rank and rarest catches.", inline=False)
+    embed.add_field(name="📖 Lore", value="`!dex` - View information on all known dragons and items.", inline=False)
     embed.add_field(name="📊 Leaderboards", value="`!hlb` - Monthly rankings.\n`!ghlb` - Lifetime rankings.", inline=False)
     embed.set_footer(text="Watch the spawn channel for dragon sounds!")
     await ctx.send(embed=embed)
@@ -315,25 +378,35 @@ async def rd(ctx):
             "Astral Elder Dragon": "*ROOOOOARRR*", 
             "Rusty Satellite": "*Clank-clatter!*", 
             "Glowing Meteor": "*Fwoosh-hiss!*", 
-            "Void Fragment": "*V-v-v-vrrrrmmm...*"
+            "Void Fragment": "*V-v-v-vrrrrmmm...*",
+            "Glorpy": "*GlOrP!*",
+            "✨ Glorpy ✨": "*Shiny GlOrP! noises*"
         }
         current_sound = roll_sounds.get(dragon_name, "*Clink!*")
         
         # --- THE ROLL LOGIC WITH PITY CAP ---
         base_roll = random.randint(1, 100)
         pity_bonus = data[uid]["pity"]
+        
+        # Check if the current dragon is a shiny
+        is_shiny = current_dragon.get("is_shiny", False)
 
-        # SET THE CAP HERE (e.g., 15 or 20)
-        # This prevents the bonus from making rare catches too easy.
-        if pity_bonus > 10:
-            pity_bonus = 10
-        
-        total_roll = base_roll + pity_bonus
-        
-        success = False
-        if current_dragon['points'] <= 5 and total_roll > 35: success = True
-        elif current_dragon['points'] <= 15 and total_roll > 70: success = True
-        elif total_roll > 90: success = True 
+        if is_shiny:
+            # SHINY RULES: No pity bonus allowed. Raw dice only.
+            total_roll = base_roll 
+            threshold = 97
+        else:
+            # NORMAL RULES: Apply capped pity bonus
+            if pity_bonus > THRESHOLDS["pity_cap"]:
+                pity_bonus = THRESHOLDS["pity_cap"]
+            total_roll = base_roll + pity_bonus
+            
+            if current_dragon['points'] <= 5: threshold = THRESHOLDS["common"]
+            elif current_dragon['points'] <= 15: threshold = THRESHOLDS["rare"]
+            else: threshold = THRESHOLDS["legendary"]
+
+        # Determine Success
+        success = total_roll >= threshold
 
         if success:
             last_catch_time = time.time() 
@@ -399,14 +472,20 @@ async def ghlb(ctx):
     view = LeaderboardView(sorted_data, "Global Lifetime Leaderboard", "global", ctx.author.display_name)
     await ctx.send(embed=view.create_embed(), view=view)
 
+@bot.command(aliases=['dd', 'dracodex'])
+async def dex(ctx):
+    view = DracoDexView(ctx.author.display_name)
+    await ctx.send(embed=view.create_embed(), view=view)
+
 # --- ADMIN COMMANDS ---
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def spawn(ctx):
     global current_dragon, last_spawn_message, next_spawn_time
     channel = bot.get_channel(spawn_channel_id)
-    dragons = [{"name": "Red Dragon", "sound": "**Rawr!**", "points": 5, "cooldown": 30}, {"name": "Basic Dragon Egg", "sound": "*Crackle...*", "points": 10, "cooldown": 15}, {"name": "Astral Elder Dragon", "sound": "*Celestial hum...*", "points": 40, "cooldown": 120}]
-    current_dragon = random.choice(dragons)
+    # Combine lists for manual admin spawn
+    all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
+    current_dragon = random.choice(all_pools)
     last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
     next_spawn_time = 0 
 
