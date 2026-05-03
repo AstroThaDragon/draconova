@@ -49,7 +49,7 @@ fly_away_messages = {
     "Glowing Meteor": "*The meteor finally cooled down and stopped glowing, becoming just a rock.*",
     "Void Fragment": "*The vibration stopped as the Void Fragment collapsed into nothingness.*",
     "Glorpy": "*Glorpy got eepy and fled!*",
-    "✨ Glorpy ✨": "*All that's left is some sparkly green substance...*"
+    "Shiny Glorpy": "*All that's left is some sparkly green substance...*"
 }
 
 # --- CUSTOM FAIL MESSAGES ---
@@ -61,7 +61,7 @@ fail_messages = {
     "Glowing Meteor": "The heat was too intense! You had to jump back!",
     "Void Fragment": "Your hands passed right through the fragment. It's not fully in this dimension...",
     "Glorpy": "Your dice got glorped!",
-    "✨ Glorpy ✨": "You saw the Shiny Glorpy and got too amazed!"
+    "Shiny Glorpy": "You saw the Shiny Glorpy and got too amazed!"
 }
 
 # --- DATA HELPERS ---
@@ -426,7 +426,7 @@ async def rd(ctx):
             "Glowing Meteor": "*Fwoosh-hiss!*", 
             "Void Fragment": "*V-v-v-vrrrrmmm...*",
             "Glorpy": "*GlOrP!*",
-            "✨ Glorpy ✨": "*Shiny GlOrP! noises*"
+            "Shiny Glorpy": "*Shiny GlOrP! noises*"
         }
         current_sound = roll_sounds.get(dragon_name, "*Clink!*")
         
