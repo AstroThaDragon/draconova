@@ -87,7 +87,7 @@ ASTRAL_CREATURES = [
             "He's a cute little green alien! "
             "He WILL glorp. Be careful!"
         ),
-        "image_url": None
+        "image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/refs/heads/main/images/glorpy.png"
     }
 ]
 
