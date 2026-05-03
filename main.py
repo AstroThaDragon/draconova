@@ -530,11 +530,11 @@ async def dex(ctx, *, search_query: str = None):
     view = DracoDexView(ctx.author.display_name)
     
     try:
-        # 1. Manual Search Logic
+        # 1. Manual Search Logic (!dd astral)
         if search_query:
-            search = search_query.lower().strip()
+            query = search_query.lower().strip()
             found_index = next((i for i, entry in enumerate(view.entries) 
-                               if search in entry['name'].lower()), None)
+                               if query in entry.get('name', '').lower()), None)
             if found_index is not None:
                 view.index = found_index
             else:
@@ -542,12 +542,11 @@ async def dex(ctx, *, search_query: str = None):
 
         # 2. Auto-Jump Logic (Jump to the active spawn)
         elif current_dragon is not None:
-            # We strip spaces and use lowercase to ensure a perfect match
-            target_name = current_dragon.get('name', "").lower().strip()
+            # We standardize both names to be safe
+            active_name = str(current_dragon.get('name', '')).lower().strip()
             
-            # Find the index in the combined entries list
             found_index = next((i for i, entry in enumerate(view.entries) 
-                               if entry['name'].lower().strip() == target_name), None)
+                               if entry.get('name', '').lower().strip() == active_name), None)
             
             if found_index is not None:
                 view.index = found_index
@@ -568,27 +567,24 @@ async def spawn(ctx, *, target_name: str = None):
     global current_dragon, last_spawn_message, next_spawn_time
     
     channel = bot.get_channel(spawn_channel_id)
-    if not channel:
-        return await ctx.send(f"❌ Error: Channel `{spawn_channel_id}` not found.")
-
-    # Combined pool of everything possible
+    # Combining your specific lists from data.py
     all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
 
     if target_name:
-        search = target_name.strip().lower()
-        # Find match where search string is contained within the name
-        match = next((d for d in all_pools if search in d['name'].lower()), None)
+        query = target_name.lower().strip()
+        # Search for any creature where your input is inside the name
+        match = next((d for d in all_pools if query in d.get('name', '').lower()), None)
         
         if match:
             current_dragon = match
-            # Alert the admin that the match was successful
-            await ctx.send(f"✅ Found: **{match['name']}**. Sending to <#{spawn_channel_id}>...")
+            await ctx.send(f"✅ Found match: **{match['name']}**. Triggering spawn...")
         else:
-            return await ctx.send(f"❓ No match for `{target_name}`. Try a shorter keyword like 'astral'.")
+            return await ctx.send(f"❓ I couldn't find any dragon/item named `{target_name}`. Double-check your data.py!")
     else:
         current_dragon = random.choice(all_pools)
-        await ctx.send(f"🎲 Spawning random encounter...")
+        await ctx.send("🎲 Spawning random encounter...")
 
+    # Now we try to send the message to the actual game channel
     try:
         last_spawn_message = await channel.send(
             f"{current_dragon['sound']}\n\n"
@@ -596,7 +592,7 @@ async def spawn(ctx, *, target_name: str = None):
         )
         next_spawn_time = 0 
     except Exception as e:
-        await ctx.send(f"❌ Failed to send spawn message: {e}")
+        await ctx.send(f"❌ Could not send to spawn channel: {e}")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
