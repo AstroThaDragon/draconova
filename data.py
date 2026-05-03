@@ -107,8 +107,8 @@ SHINY = [
 ]
 
 THRESHOLDS = {
-    "common": 35,
-    "rare": 70,
-    "legendary": 90,
+    "common": 30,
+    "rare": 60,
+    "legendary": 85,
     "pity_cap": 10
 }

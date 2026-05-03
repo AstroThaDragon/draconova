@@ -553,9 +553,14 @@ async def rd(ctx):
                 pity_bonus = THRESHOLDS["pity_cap"]
             total_roll = base_roll + pity_bonus
             
-            if current_dragon['points'] <= 5: threshold = THRESHOLDS["common"]
-            elif current_dragon['points'] <= 15: threshold = THRESHOLDS["rare"]
-            else: threshold = THRESHOLDS["legendary"]
+	    if current_dragon['points'] <= 15: 
+                threshold = THRESHOLDS["common"]      # 1 to 15 points
+            elif current_dragon['points'] <= 40: 
+                threshold = THRESHOLDS["rare"]        # 16 to 40 points
+            elif current_dragon['points'] <= 50: 
+                threshold = THRESHOLDS["legendary"]   # 41 to 50 points
+            else: 
+                threshold = 97                        # 51+ points (Shiny/Ultra Rare)
 
         if data[uid]["monthly"] >= 200:
             threshold += 10  # Makes the required roll 10 points higher
