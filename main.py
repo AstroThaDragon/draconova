@@ -480,7 +480,6 @@ async def rd(ctx):
                 f"-# (Roll: {base_roll})"
             )
             
-            current_dragon = None 
             last_spawn_message = None
             next_spawn_time = 0 
         else:
@@ -525,21 +524,23 @@ async def ghlb(ctx):
 
 @bot.command(aliases=['dd', 'dracodex'])
 async def dex(ctx, *, search_query: str = None):
+    """View the DracoDex. Defaults to the active (or most recent) spawn."""
     global current_dragon
     view = DracoDexView(ctx.author.display_name)
     
     try:
-        # Priority 1: Manual Search (!dd red)
+        # 1. Manual Search (!dd Red Dragon)
         if search_query:
-            query = search_query.lower().strip()
+            # Replacing underscores with spaces so !spawn astral_elder_dragon works
+            query = search_query.lower().replace('_', ' ').strip()
             for i, entry in enumerate(view.entries):
-                if query in entry.get('name', '').lower():
+                if query == entry.get('name', '').lower():
                     view.index = i
                     break
 
-        # Priority 2: Jump to Active Spawn
+        # 2. Memory Logic (Jump to the active or most recent spawn)
         elif current_dragon:
-            # Match the name exactly (both lowercase and stripped of spaces)
+            # We match the name exactly
             target = current_dragon.get('name', '').lower().strip()
             for i, entry in enumerate(view.entries):
                 if entry.get('name', '').lower().strip() == target:
@@ -557,25 +558,29 @@ async def dex(ctx, *, search_query: str = None):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def spawn(ctx, *, target_name: str = None):
+    """Admin only: Spawns a specific dragon/item by exact name."""
     global current_dragon, last_spawn_message, next_spawn_time
     
     channel = bot.get_channel(spawn_channel_id)
-    # Combining all your lists from data.py
     all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY 
 
     if target_name:
-        query = target_name.lower().strip()
-        # Find the first item that contains your search word
-        match = next((d for d in all_pools if query in d.get('name', '').lower()), None)
+        # Replace underscores with spaces so 'astral_elder_dragon' becomes 'astral elder dragon'
+        query = target_name.lower().replace('_', ' ').strip()
+        
+        # EXACT MATCH LOGIC
+        # This will only work if the full name matches what's in data.py
+        match = next((d for d in all_pools if d.get('name', '').lower() == query), None)
         
         if match:
             current_dragon = match
-            await ctx.send(f"✅ Found: **{match['name']}**. Spawning...")
+            await ctx.send(f"✅ Exact match found: **{match['name']}**. Spawning...")
         else:
-            return await ctx.send(f"❌ I couldn't find anything matching `{target_name}`.")
+            # If it's not an exact match, the bot tells you and stops
+            return await ctx.send(f"❌ No exact match for `{target_name}`. Please use the full name.")
     else:
         current_dragon = random.choice(all_pools)
-        await ctx.send("🎲 Spawning random...")
+        await ctx.send("🎲 Spawning random encounter...")
 
     try:
         last_spawn_message = await channel.send(
@@ -584,7 +589,7 @@ async def spawn(ctx, *, target_name: str = None):
         )
         next_spawn_time = 0 
     except Exception as e:
-        await ctx.send(f"❌ Could not send to spawn channel: {e}")
+        await ctx.send(f"❌ Error finding dex entry: {e}")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
