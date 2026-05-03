@@ -381,20 +381,16 @@ async def despawn_timer():
 async def spawn_dragon_loop():
     global current_dragon, last_spawn_message, next_spawn_time
     
-    # 1. Handle Timer Reset
     if next_spawn_time == 0:
         wait_seconds = random.randint(300, 1800)
         next_spawn_time = time.time() + wait_seconds
         return
 
-    # 2. Handle the Actual Spawn
     if time.time() >= next_spawn_time and current_dragon is None:
         channel = bot.get_channel(spawn_channel_id)
         if channel is None: return
 
-        # Combine all normal pools
         all_normals = DRAGONS + ITEMS + ASTRAL_CREATURES
-        
         shiny_roll = random.uniform(0, 100) 
         
         if shiny_roll <= 0.4:
@@ -402,7 +398,18 @@ async def spawn_dragon_loop():
         else:
             current_dragon = random.choice(all_normals)
 
-        last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
+        # --- NEW EMBED LOGIC ---
+        embed = discord.Embed(
+            title="A Wild Appearance!",
+            description=f"{current_dragon['sound']}",
+            color=discord.Color.random()
+        )
+        
+        # This line checks if the dragon has an image_url and adds it to the spawn message
+        if current_dragon.get('image_url'):
+            embed.set_image(url=current_dragon['image_url'])
+
+        last_spawn_message = await channel.send(embed=embed)
         next_spawn_time = 0
 
 # --- EVENTS ---
@@ -686,14 +693,19 @@ async def spawn(ctx, *, target_name: str = None):
 
     # Execution
     try:
-        last_spawn_message = await channel.send(
-            f"{current_dragon['sound']}\n\n"
-            f"A wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!"
+        embed = discord.Embed(
+            title="Admin Spawn triggered!",
+            description=f"{current_dragon['sound']}",
+            color=discord.Color.gold()
         )
+        if current_dragon.get('image_url'):
+            embed.set_image(url=current_dragon['image_url'])
+
+        last_spawn_message = await channel.send(embed=embed)
         next_spawn_time = 0 
     except Exception as e:
         print(f"ERROR DURING SEND: {e}")
-        await ctx.send(f"❌ Failed to send message to spawn channel: {e}")
+        await ctx.send(f"❌ Failed to send message: {e}")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
