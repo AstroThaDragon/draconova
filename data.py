@@ -96,9 +96,7 @@ ASTRAL_CREATURES = [
 	"cooldown": 45,
 	"description": (
 	    "Larry... but alien."
-	    "Didn't think he can get any worse."
-	    "*I was wrong.*"
-	    "**Run.**"
+	    "Didn't think he can get any worse. I was wrong. **Run.**"
 	),
 	"image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/main/images/alien-larry.png"
     }
@@ -115,7 +113,7 @@ SHINY = [
             "The same as a normal Glorpy, but this one is sparkly! "
             "He's very rare! Don't let him glorp you!"
         ),
-        "image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/main/images/shiny-glorpy.png"
+        "image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/main/images/shiny-glorpy.png
     }
 ]
 
