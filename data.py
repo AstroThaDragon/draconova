@@ -101,6 +101,7 @@ ASTRAL_CREATURES = [
 	    "**Run.**"
 	),
 	"image_url": "https://raw.githubusercontent.com/AstroThaDragon/draconova/main/images/alien-larry.png"
+    }
 ]
 
 SHINY = [
