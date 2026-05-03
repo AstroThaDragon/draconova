@@ -525,33 +525,36 @@ async def ghlb(ctx):
 
 @bot.command(aliases=['dd', 'dracodex'])
 async def dex(ctx, *, search_query: str = None):
-    """View the DracoDex. Defaults to the last spawned dragon if no search is provided."""
+    """View the DracoDex. Defaults to the active spawn if no search is provided."""
     global current_dragon
     view = DracoDexView(ctx.author.display_name)
     
-    # 1. Search Logic (e.g. !dd astral)
-    if search_query:
-        found_index = next((i for i, entry in enumerate(view.entries) 
-                           if search_query.lower() in entry['name'].lower()), None)
-        
-        if found_index is not None:
-            view.index = found_index
-        else:
-            await ctx.send(f"🔍 No entry found for `{search_query}`. Opening at start...", delete_after=5)
-
-    # 2. Memory Logic (Jump to the active spawn)
-    elif current_dragon:
-        # We use a case-insensitive check here to be safer
-        found_index = next((i for i, entry in enumerate(view.entries) 
-                           if entry['name'].lower() == current_dragon['name'].lower()), None)
-        if found_index is not None:
-            view.index = found_index
-
     try:
+        # 1. Search Logic (e.g. !dd astral)
+        if search_query:
+            found_index = next((i for i, entry in enumerate(view.entries) 
+                               if search_query.lower() in entry['name'].lower()), None)
+            if found_index is not None:
+                view.index = found_index
+            else:
+                await ctx.send(f"🔍 No entry found for `{search_query}`.", delete_after=5)
+
+        # 2. Memory Logic (Jump to the active spawn)
+        elif current_dragon is not None:
+            # We look for the name string specifically to avoid object comparison errors
+            target_name = current_dragon.get('name', "").lower()
+            found_index = next((i for i, entry in enumerate(view.entries) 
+                               if entry['name'].lower() == target_name), None)
+            if found_index is not None:
+                view.index = found_index
+
         await ctx.send(embed=view.create_embed(), view=view)
+        
     except Exception as e:
-        print(f"Dex Error: {e}")
-        await ctx.send("An error occurred opening the DracoDex.")
+        print(f"DEX ERROR: {e}")
+        # Fallback: Just open the dex at page 0 if the 'active spawn' logic crashed it
+        view.index = 0
+        await ctx.send(embed=view.create_embed(), view=view)
 
 # --- ADMIN COMMANDS ---
 
@@ -561,28 +564,37 @@ async def spawn(ctx, *, target_name: str = None):
     """Admin only: Spawns a specific dragon/item or a random one."""
     global current_dragon, last_spawn_message, next_spawn_time
     
+    # Safety: Ensure the channel exists
     channel = bot.get_channel(spawn_channel_id)
     if not channel:
-        return await ctx.send(f"❌ Error: Spawn channel not found.")
+        return await ctx.send(f"❌ Error: I cannot find channel ID `{spawn_channel_id}`. Check your config!")
 
     all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
 
     if target_name:
-        # Search for the best match
-        match = next((d for d in all_pools if target_name.lower() in d['name'].lower()), None)
+        # Clean the input
+        search = target_name.strip().lower()
+        # Find match where search is IN the name
+        match = next((d for d in all_pools if search in d['name'].lower()), None)
+        
         if match:
             current_dragon = match
+            await ctx.send(f"🎯 Matching found: **{match['name']}**. Spawning now...")
         else:
-            return await ctx.send(f"❓ No match found for `{target_name}`.")
+            return await ctx.send(f"❓ No dragon or item matches `{target_name}`. Use the exact name from the Dex!")
     else:
         current_dragon = random.choice(all_pools)
+        await ctx.send(f"🎲 Spawning a random encounter...")
 
-    # Force the spawn to happen
-    last_spawn_message = await channel.send(f"{current_dragon['sound']}\n\nA wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!")
-    next_spawn_time = 0 
-    
-    if ctx.channel.id != spawn_channel_id:
-        await ctx.send(f"✅ Forced spawn: **{current_dragon['name']}**.")
+    # Execute the spawn message in the designated channel
+    try:
+        last_spawn_message = await channel.send(
+            f"{current_dragon['sound']}\n\n"
+            f"A wild **{current_dragon['name']}** has appeared! Use `!rd` to catch it!"
+        )
+        next_spawn_time = 0 
+    except Exception as e:
+        await ctx.send(f"❌ Failed to send spawn message: {e}")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
