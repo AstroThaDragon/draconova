@@ -253,16 +253,23 @@ class DracoDexView(discord.ui.View):
         data = load_data()
         self.user_lifetime_inv = data.get(self.user_id, {}).get("lifetime_inventory", {})
 
-    def get_rarity_info(self, entry):
+        def get_rarity_info(self, entry):
+        # 1. Check for the Shiny tag first
         if entry.get('is_shiny'):
             return discord.Color.gold(), "✨ SHINY ✨"
+        
         pts = entry.get('points', 0)
-        if pts <= 5:
+        
+        # 2. Then check point-based rarities
+        if pts <= 15:
             return discord.Color.green(), "Common"
-        elif pts <= 15:
+        elif pts <= 40:
             return discord.Color.blue(), "Rare"
-        else:
+        elif pts <= 50:
             return discord.Color.purple(), "Legendary"
+        else:
+            # This catches non-shiny dragons that are 51+ points
+            return discord.Color.from_rgb(255, 0, 127), "ULTRA RARE"
 
     def get_category(self, entry):
         if entry in DRAGONS: return "Dragon"
