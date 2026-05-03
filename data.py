@@ -90,7 +90,7 @@ ASTRAL_CREATURES = [
 
 SHINY = [
     {
-        "name": "✨ Glorpy ✨",
+        "name": "Shiny Glorpy",
         "sound": "*Shiny* ***GLOOOORP*** *sounds!*",
         "points": 60,
         "cooldown": 60,

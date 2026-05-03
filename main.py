@@ -525,34 +525,28 @@ async def ghlb(ctx):
 
 @bot.command(aliases=['dd', 'dracodex'])
 async def dex(ctx, *, search_query: str = None):
-    """View the DracoDex. Defaults to the active spawn if no search is provided."""
     global current_dragon
     view = DracoDexView(ctx.author.display_name)
     
     try:
-        # 1. Manual Search Logic (!dd astral)
+        # Priority 1: Manual Search (!dd red)
         if search_query:
             query = search_query.lower().strip()
-            found_index = next((i for i, entry in enumerate(view.entries) 
-                               if query in entry.get('name', '').lower()), None)
-            if found_index is not None:
-                view.index = found_index
-            else:
-                await ctx.send(f"🔍 No entry found for `{search_query}`.", delete_after=5)
+            for i, entry in enumerate(view.entries):
+                if query in entry.get('name', '').lower():
+                    view.index = i
+                    break
 
-        # 2. Auto-Jump Logic (Jump to the active spawn)
-        elif current_dragon is not None:
-            # We standardize both names to be safe
-            active_name = str(current_dragon.get('name', '')).lower().strip()
-            
-            found_index = next((i for i, entry in enumerate(view.entries) 
-                               if entry.get('name', '').lower().strip() == active_name), None)
-            
-            if found_index is not None:
-                view.index = found_index
+        # Priority 2: Jump to Active Spawn
+        elif current_dragon:
+            # Match the name exactly (both lowercase and stripped of spaces)
+            target = current_dragon.get('name', '').lower().strip()
+            for i, entry in enumerate(view.entries):
+                if entry.get('name', '').lower().strip() == target:
+                    view.index = i
+                    break
 
         await ctx.send(embed=view.create_embed(), view=view)
-        
     except Exception as e:
         print(f"DEX ERROR: {e}")
         view.index = 0
@@ -563,28 +557,26 @@ async def dex(ctx, *, search_query: str = None):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def spawn(ctx, *, target_name: str = None):
-    """Admin only: Spawns a specific dragon/item or a random one."""
     global current_dragon, last_spawn_message, next_spawn_time
     
     channel = bot.get_channel(spawn_channel_id)
-    # Combining your specific lists from data.py
-    all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY
+    # Combining all your lists from data.py
+    all_pools = DRAGONS + ITEMS + ASTRAL_CREATURES + SHINY 
 
     if target_name:
         query = target_name.lower().strip()
-        # Search for any creature where your input is inside the name
+        # Find the first item that contains your search word
         match = next((d for d in all_pools if query in d.get('name', '').lower()), None)
         
         if match:
             current_dragon = match
-            await ctx.send(f"✅ Found match: **{match['name']}**. Triggering spawn...")
+            await ctx.send(f"✅ Found: **{match['name']}**. Spawning...")
         else:
-            return await ctx.send(f"❓ I couldn't find any dragon/item named `{target_name}`. Double-check your data.py!")
+            return await ctx.send(f"❌ I couldn't find anything matching `{target_name}`.")
     else:
         current_dragon = random.choice(all_pools)
-        await ctx.send("🎲 Spawning random encounter...")
+        await ctx.send("🎲 Spawning random...")
 
-    # Now we try to send the message to the actual game channel
     try:
         last_spawn_message = await channel.send(
             f"{current_dragon['sound']}\n\n"
