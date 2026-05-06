@@ -13,6 +13,8 @@ import aiohttp
 import io
 from datetime import datetime
 from dotenv import load_dotenv
+from flask import Flask, jsonify
+import threading
 
 # --- SECURE TOKEN LOADING ---
 load_dotenv()                       
@@ -542,7 +544,7 @@ async def rd(ctx):
             "Void Fragment": "*V-v-v-vrrrrmmm...*",
             "Glorpy": "*GlOrP!*",
             "Shiny Glorpy": "*Shiny GlOrP! noises*",
-	    "Alien Larry": "*Peeeeenaaarrr.*"
+            "Alien Larry": "*Peeeeenaaarrr.*"
         }
         current_sound = roll_sounds.get(dragon_name, "*Clink!*")
         
@@ -785,18 +787,34 @@ async def reset_lifetime(ctx, member: discord.Member = None):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def next(ctx):
+    """Admin only: Checks when the next spawn will occur."""
     global next_spawn_time
     if next_spawn_time == 0:
         return await ctx.send("The spawn timer hasn't scheduled a dragon yet. It should update soon!")
     
     remaining = int(next_spawn_time - time.time())
-    if remaining <= 0:
-        await ctx.send("A dragon should be appearing any second now... 🐲")
+    if remaining < 0:
+        await ctx.send("A spawn is overdue! It should happen any second.")
     else:
-        mins, secs = divmod(remaining, 60)
-        await ctx.send(f"🕒 **Next Spawn:** In approximately **{mins}m {secs}s**.")
+        minutes = remaining // 60
+        seconds = remaining % 60
+        await ctx.send(f"⏳ Next spawn in approximately **{minutes}m {seconds}s**.")
 
-if TOKEN:
+# --- RAILWAY HEALTH CHECK SERVER ---
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return jsonify({"status": "online"}), 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# --- START BOT ---
+if __name__ == "__main__":
+    # Start Flask in a separate thread for Railway health checks
+    threading.Thread(target=run_flask, daemon=True).start()
+    
+    # Start the Discord bot
     bot.run(TOKEN)
-else:
-    print("Error: DISCORD_TOKEN not found in .env file!")
