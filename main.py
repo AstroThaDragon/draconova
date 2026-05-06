@@ -15,10 +15,35 @@ from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 import threading
+from quart import Quart, jsonify
 
 # --- SECURE TOKEN LOADING ---
 load_dotenv()                       
 TOKEN = os.getenv('DISCORD_TOKEN')
+
+# --- QUART API SERVER SETUP ---
+app = Quart(__name__)
+
+@app.route('/leaderboard', methods=['GET'])
+async def get_leaderboard():
+    """API Endpoint for Enceladus to fetch rankings."""
+    raw_data = load_data()
+    # Sort by monthly points descending
+    sorted_data = sorted(raw_data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
+    
+    # Format for the API response
+    payload = []
+    for user_id, stats in sorted_data:
+        payload.append({
+            "user_id": user_id,
+            "monthly_points": stats.get('monthly', 0)
+        })
+    return jsonify(payload)
+
+async def start_api():
+    """Starts the web server on the port provided by Railway."""
+    port = int(os.environ.get("PORT", 5000))
+    await app.run_task(host="0.0.0.0", port=port)
 
 # --- RAILWAY DATA RECOVERY (VARIABLE INJECTION) ---
 if not os.path.exists('data/hoard.json'):
