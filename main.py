@@ -466,6 +466,7 @@ async def on_ready():
     if not despawn_timer.is_running():
         despawn_timer.start()
     print('Ready to catch some dragons!')
+    print('API Server is starting...')
 
 # --- COMMANDS ---
 @bot.command()
@@ -825,21 +826,45 @@ async def next(ctx):
         seconds = remaining % 60
         await ctx.send(f"⏳ Next spawn in approximately **{minutes}m {seconds}s**.")
 
-# --- RAILWAY HEALTH CHECK SERVER ---
-app = Flask(__name__)
+# --- CONSOLIDATED API SERVER (Health Check + Leaderboard) ---
+app = Quart(__name__)
 
 @app.route('/')
-def health_check():
+async def health_check():
+    """Tells Railway the bot is alive."""
     return jsonify({"status": "online"}), 200
 
-def run_flask():
+@app.route('/leaderboard', methods=['GET'])
+async def get_leaderboard():
+    """API Endpoint for Enceladus to fetch rankings."""
+    raw_data = load_data()
+    # Sort by monthly points descending
+    sorted_data = sorted(raw_data.items(), key=lambda x: x[1].get('monthly', 0), reverse=True)
+    
+    payload = []
+    for user_id, stats in sorted_data:
+        payload.append({
+            "user_id": user_id,
+            "monthly_points": stats.get('monthly', 0)
+        })
+    return jsonify(payload)
+
+async def start_api():
+    """Starts the single web server on the Railway port."""
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    # Using run_task instead of run because we are running inside Discord's loop
+    await app.run_task(host="0.0.0.0", port=port)
 
 # --- START BOT ---
+async def main():
+    async with bot:
+        # This starts the API server (Leaderboard + Health) in the background
+        bot.loop.create_task(start_api())
+        # This starts Draconova
+        await bot.start(TOKEN)
+
 if __name__ == "__main__":
-    # Start Flask in a separate thread for Railway health checks
-    threading.Thread(target=run_flask, daemon=True).start()
-    
-    # Start the Discord bot
-    bot.run(TOKEN)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
